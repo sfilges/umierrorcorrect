@@ -17,9 +17,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from umierrorcorrect.src.check_args import check_args_fastq
-from umierrorcorrect.src.handle_sequences import read_fastq, read_fastq_paired_end
-from umierrorcorrect.src.logging_config import log_subprocess_stderr
+from umierrorcorrect.core.check_args import check_args_fastq
+from umierrorcorrect.core.handle_sequences import read_fastq, read_fastq_paired_end
+from umierrorcorrect.core.logging_config import log_subprocess_stderr
 
 
 def check_output_directory(outdir):

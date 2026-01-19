@@ -4,7 +4,8 @@ from collections import Counter
 
 import pysam
 
-from umierrorcorrect.src.get_regions_from_bed import expand_regions_from_bed, merge_regions, read_bed, sort_regions
+from umierrorcorrect.core.check_args import get_sample_name
+from umierrorcorrect.core.get_regions_from_bed import expand_regions_from_bed, merge_regions, read_bed, sort_regions
 
 # class Region:
 #     def __init__(self, pos):

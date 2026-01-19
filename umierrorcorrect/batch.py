@@ -16,7 +16,7 @@ from typing import Optional
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
-from umierrorcorrect.src.logging_config import (
+from umierrorcorrect.core.logging_config import (
     add_file_handler,
     get_log_path,
     get_logger,

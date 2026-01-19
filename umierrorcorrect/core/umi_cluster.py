@@ -2,12 +2,9 @@
 # from collections import Counter
 # import time
 import itertools
-
-# import sys
-import pickle
 from collections.abc import Generator
 
-from umierrorcorrect.src.constants import SUBSTRING_OPTIMIZATION_THRESHOLD
+from umierrorcorrect.core.constants import SUBSTRING_OPTIMIZATION_THRESHOLD
 
 
 class umi_cluster:
@@ -179,43 +176,3 @@ def merge_clusters(barcodedict: dict[str, int], clusters: list[list[str]]) -> di
     # print(umis)
     return umis
 
-
-def main():
-    # print(hamming_distance('ATTAA','ACTAA'))
-    # print(hamming_distance('ATAA','ACTAA'))
-    edit_distance_threshold = 1
-    with open("/home/xsteto/tmp/umierrorcorrect/test.pickle", "rb") as f:
-        regions = pickle.load(f)
-        # adj_matrix=cluster_barcodes(regions['2'][33141588])
-        umis = regions["17"][7577495]
-        adj_matrix = cluster_barcodes(regions["17"][7577495], edit_distance_threshold)
-        clusters = get_connected_components(regions["17"][7577495], adj_matrix)
-        # print(clusters)
-        print(len(clusters))
-        n = 0
-        for cl in clusters:
-            # if 'ACACTCGTAGTA' in cl:
-            if "CATGGCGAGCCT" in cl:
-                print(cl)
-                for c in cl:
-                    print(c, regions["17"][7577495][c])
-                    print(umis[c])
-            for c in cl:
-                if "CATGGCGAGCCT" in c:
-                    print(cl)
-                n += 1
-        print(n)
-        # ifor a in adj_matrix:
-        #    print (a+'\t'+' '.join(adj_matrix[a]))
-        # print(adj_matrix)
-        # umis=merge_clusters(regions['2'][33141588],adj_matrix)
-        umis = merge_clusters(regions["17"][7577495], clusters)
-        # print(umis)
-        # for umi in umis:
-        #    print(umi,umis[umi].centroid,umis[umi].count)
-    with open("/home/xsteto/umierrorcorrect/umi.pickle", "wb") as g:
-        pickle.dump(umis, g)
-
-
-if __name__ == "__main__":
-    main()

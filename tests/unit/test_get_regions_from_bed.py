@@ -1,6 +1,6 @@
-"""Unit tests for umierrorcorrect.src.get_regions_from_bed module."""
+"""Unit tests for umierrorcorrect.core.get_regions_from_bed module."""
 
-from umierrorcorrect.src.get_regions_from_bed import (
+from umierrorcorrect.core.get_regions_from_bed import (
     get_annotation,
     get_annotation2,
     get_overlap,

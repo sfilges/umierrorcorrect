@@ -8,9 +8,9 @@ from collections import Counter
 
 import pysam
 
-from umierrorcorrect.src.constants import DEFAULT_FAMILY_SIZES, SINGLETON_FAMILY_SIZES
-from umierrorcorrect.src.get_consensus3 import get_all_consensus, get_cons_dict, get_reference_sequence
-from umierrorcorrect.src.get_regions_from_bed import (
+from umierrorcorrect.core.constants import DEFAULT_FAMILY_SIZES, SINGLETON_FAMILY_SIZES
+from umierrorcorrect.core.get_consensus3 import consensus_read, get_ascii, get_most_common_allele, get_reference_sequence
+from umierrorcorrect.core.get_regions_from_bed import (
     get_annotation2,
     merge_regions,
     read_bed,

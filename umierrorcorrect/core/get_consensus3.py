@@ -12,15 +12,15 @@ from math import log10
 
 import pysam
 
-from umierrorcorrect.src.constants import (
+from umierrorcorrect.core.constants import (
     COVERAGE_THRESHOLD_FOR_SIMPLE_CONSENSUS,
     DEFAULT_MAPPING_QUALITY,
     MAX_PHRED_SCORE,
     PHRED_TABLE_SIZE,
     READ_GROUP_TAG,
 )
-from umierrorcorrect.src.group import readBam
-from umierrorcorrect.src.umi_cluster import cluster_barcodes, get_connected_components, merge_clusters
+from umierrorcorrect.core.group import readBam
+from umierrorcorrect.core.umi_cluster import cluster_barcodes, get_connected_components, merge_clusters
 
 # Pre-computed lookup tables for phred score conversions (avoid repeated 10**x calculations)
 # Phred scores typically range from 0-93 (ASCII 33-126)

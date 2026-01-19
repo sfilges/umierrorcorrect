@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pysam
 
-from umierrorcorrect.src.get_cons_info import calc_major_nonref_allele_frequency, get_cons_info, write_consensus
-from umierrorcorrect.src.get_consensus3 import (
+from umierrorcorrect.core.get_cons_info import calc_major_nonref_allele_frequency, get_cons_info, write_consensus
+from umierrorcorrect.core.get_consensus3 import (
     get_all_consensus,
     get_all_consensus_most_common,
     get_all_consensus_msa,
@@ -20,9 +20,9 @@ from umierrorcorrect.src.get_consensus3 import (
     get_reference_sequence,
     write_singleton_reads,
 )
-from umierrorcorrect.src.get_regions_from_bed import get_overlap, merge_regions, read_bed, sort_regions
-from umierrorcorrect.src.group import read_bam_from_bed, read_bam_from_tag, readBam
-from umierrorcorrect.src.umi_cluster import cluster_barcodes, get_connected_components, merge_clusters
+from umierrorcorrect.core.get_regions_from_bed import get_overlap, merge_regions, read_bed, sort_regions
+from umierrorcorrect.core.group import read_bam_from_bed, read_bam_from_tag, readBam
+from umierrorcorrect.core.umi_cluster import cluster_barcodes, get_connected_components, merge_clusters
 
 
 def check_output_directory(outdir):

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pysam
 
-from umierrorcorrect.src.logging_config import log_subprocess_stderr
+from umierrorcorrect.core.logging_config import log_subprocess_stderr
 
 
 def check_output_directory(outdir):

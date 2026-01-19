@@ -1,7 +1,7 @@
-"""Unit tests for umierrorcorrect.src.umi_cluster module."""
+"""Unit tests for umierrorcorrect.core.umi_cluster module."""
 
 import pytest
-from umierrorcorrect.src.umi_cluster import (
+from umierrorcorrect.core.umi_cluster import (
     cluster_barcodes,
     create_substring_matrix,
     get_connected_components,

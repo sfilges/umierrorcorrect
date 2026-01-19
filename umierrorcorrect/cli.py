@@ -7,7 +7,7 @@ from typing import Annotated, Optional
 import typer
 from rich.console import Console
 
-from umierrorcorrect.src.logging_config import add_file_handler, get_log_path, get_logger, setup_logging
+from umierrorcorrect.core.logging_config import add_file_handler, get_log_path, get_logger, setup_logging
 from umierrorcorrect.version import __version__
 
 # Create main app and subcommand apps
@@ -327,7 +327,7 @@ def filter_bam(
     cutoff: Annotated[int, typer.Option("-c", "--cutoff", help="Consensus depth cutoff.")] = 3,
 ) -> None:
     """Filter BAM file by removing reads below consensus depth threshold."""
-    from umierrorcorrect.filter_bam import filter_bam as run_filter_bam
+    from umierrorcorrect.core.filter import filter_bam as run_filter_bam
 
     logger.info("Filtering BAM file")
     run_filter_bam(str(infile), str(outfile), cutoff)
@@ -344,7 +344,7 @@ def filter_cons(
     write_raw: Annotated[bool, typer.Option("--write-raw", help="Include raw reads in output.")] = False,
 ) -> None:
     """Filter consensus file by depth and family sizes."""
-    from umierrorcorrect.filter_cons import filter_cons as run_filter_cons
+    from umierrorcorrect.core.filter import filter_cons as run_filter_cons
 
     logger.info("Filtering consensus file")
     run_filter_cons(str(infile), depth, family_sizes, write_raw)
@@ -393,7 +393,7 @@ def fit_model(
     """Fit beta-binomial background model for variant calling."""
     from argparse import Namespace
 
-    from umierrorcorrect.fit_background_model import run_fit_bgmodel
+    from umierrorcorrect.core.fit_background_model import run_fit_bgmodel
 
     args = Namespace(
         cons_file=str(cons_file) if cons_file else None,
