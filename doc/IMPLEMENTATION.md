@@ -371,12 +371,14 @@ p2.communicate()
 **Location:** `umierrorcorrect/src/check_args.py` line 37-38
 
 **Current:**
+
 ```python
 devnull = open(os.devnull)
 subprocess.Popen([name,'--version'], stdout=devnull, stderr=devnull)
 ```
 
 **Fixed:**
+
 ```python
 with open(os.devnull, 'w') as devnull:
     subprocess.run([name, '--version'], stdout=devnull, stderr=devnull, check=False)
@@ -387,6 +389,7 @@ with open(os.devnull, 'w') as devnull:
 **Location:** `umierrorcorrect/src/check_args.py` lines 77-83
 
 **Current:**
+
 ```python
 except ValueError as e:
     raise(e + " Barcode length needs to be an integer")
@@ -394,6 +397,7 @@ except ValueError as e:
 ```
 
 **Fixed:**
+
 ```python
 except ValueError as e:
     raise ValueError(f"Barcode length must be an integer: {e}") from e
@@ -404,11 +408,13 @@ except ValueError as e:
 **Location:** `umierrorcorrect/umi_error_correct.py` lines 219, 228
 
 **Current:**
+
 ```python
 f = open('tmp.txt', 'w')
 ```
 
 **Fixed:**
+
 ```python
 import tempfile
 
@@ -551,6 +557,549 @@ from __future__ import division  # Not needed in Python 3
 | `umi_error_correct.py` | 54 | "emove the original" | "Remove the original" |
 | `run_mapping.py` | 26 | "emove the original" | "Remove the original" |
 | `umi_error_correct.py` | 491 | "0cluster umis" | "cluster UMIs" |
+
+### 4.8 Refactor CLI with Typer + Rich
+
+Consolidate all CLI argument parsing into a single `cli.py` module using [Typer](https://typer.tiangolo.com/) and [Rich](https://rich.readthedocs.io/) for a modern, user-friendly CLI experience.
+
+**Current state:** Each of the 10 CLI scripts uses argparse with mixed argument parsing and business logic.
+
+**Target structure:**
+
+```
+umierrorcorrect/
+├── cli.py              # Typer app with subcommands, Rich console output
+├── preprocess.py       # preprocess() function (no CLI code)
+├── run_mapping.py      # run_mapping() function
+├── umi_error_correct.py # umi_error_correct() function
+├── filter_bam.py       # filter_bam() function
+└── ...
+```
+
+**Benefits:**
+- **Testability:** Core functions can be unit tested without mocking CLI
+- **Programmatic use:** Functions importable from Jupyter notebooks or custom pipelines
+- **Single entry point:** `umierrorcorrect <command>` instead of 10 separate scripts
+- **Beautiful output:** Rich progress bars, colored output, formatted tables
+- **Type-driven:** Arguments derived from type hints, automatic validation
+- **Auto-generated help:** Beautiful help text with examples
+
+**Add dependencies to pyproject.toml:**
+
+```toml
+dependencies = [
+    "pysam>=0.8.4",
+    "scipy",
+    "matplotlib",
+    "typer[all]>=0.9.0",  # Includes Rich
+]
+```
+
+**Example refactor for `filter_bam.py`:**
+
+```python
+# filter_bam.py (after refactor - core function only)
+from pathlib import Path
+import pysam
+
+def filter_bam(infile: Path, outfile: Path, consensus_cutoff: int = 3) -> int:
+    """Filter BAM file by consensus depth cutoff.
+
+    Args:
+        infile: Path to input BAM file.
+        outfile: Path to output BAM file.
+        consensus_cutoff: Minimum consensus depth to retain read.
+
+    Returns:
+        Number of reads written.
+    """
+    count = 0
+    with pysam.AlignmentFile(infile, "rb") as f, \
+         pysam.AlignmentFile(outfile, "wb", template=f) as g:
+        for read in f.fetch():
+            size = int(read.qname.rsplit("=", 1)[-1])
+            if size >= consensus_cutoff:
+                g.write(read)
+                count += 1
+    return count
+```
+
+```python
+# cli.py (new file - Typer CLI)
+from pathlib import Path
+from typing import Annotated, Optional
+
+import typer
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
+
+from umierrorcorrect import __version__
+from umierrorcorrect.filter_bam import filter_bam
+from umierrorcorrect.preprocess import preprocess
+
+app = typer.Typer(
+    name="umierrorcorrect",
+    help="Pipeline for analyzing barcoded amplicon sequencing data with UMIs.",
+    add_completion=False,
+)
+console = Console()
+
+
+def version_callback(value: bool):
+    if value:
+        console.print(f"[bold blue]UMIErrorCorrect[/] v{__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: Annotated[
+        Optional[bool],
+        typer.Option("--version", "-v", callback=version_callback, is_eager=True),
+    ] = None,
+):
+    """UMIErrorCorrect: UMI-based error correction for amplicon sequencing."""
+    pass
+
+
+@app.command()
+def filter(
+    infile: Annotated[Path, typer.Option("--infile", "-i", help="Input BAM file")],
+    outfile: Annotated[Path, typer.Option("--outfile", "-o", help="Output BAM file")],
+    consensus_cutoff: Annotated[
+        int, typer.Option("--consensus-cutoff", "-c", help="Minimum consensus depth")
+    ] = 3,
+):
+    """Filter BAM file by consensus depth."""
+    if not infile.exists():
+        console.print(f"[red]Error:[/] Input file not found: {infile}")
+        raise typer.Exit(1)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        progress.add_task("Filtering BAM...", total=None)
+        count = filter_bam(infile, outfile, consensus_cutoff)
+
+    console.print(f"[green]✓[/] Wrote {count:,} reads to {outfile}")
+
+
+@app.command()
+def preprocess(
+    infile1: Annotated[Path, typer.Option("--read1", "-r1", help="R1 FASTQ file")],
+    infile2: Annotated[Path, typer.Option("--read2", "-r2", help="R2 FASTQ file")],
+    outdir: Annotated[Path, typer.Option("--output-dir", "-o", help="Output directory")],
+    umi_length: Annotated[int, typer.Option("--umi-length", "-ul", help="UMI barcode length")] = 12,
+    spacer_length: Annotated[int, typer.Option("--spacer-length", "-sl", help="Spacer length")] = 0,
+):
+    """Preprocess FASTQ files: extract UMIs and merge reads."""
+    # ... implementation
+    pass
+
+
+@app.command()
+def run(
+    infile1: Annotated[Path, typer.Option("--read1", "-r1", help="R1 FASTQ file")],
+    infile2: Annotated[Path, typer.Option("--read2", "-r2", help="R2 FASTQ file")],
+    outdir: Annotated[Path, typer.Option("--output-dir", "-o", help="Output directory")],
+    reference: Annotated[Path, typer.Option("--reference", "-r", help="Reference genome")],
+    threads: Annotated[int, typer.Option("--threads", "-t", help="Number of threads")] = 1,
+):
+    """Run the complete UMI error correction pipeline."""
+    console.print("[bold]UMIErrorCorrect Pipeline[/]")
+    console.print()
+
+    with Progress(console=console) as progress:
+        task = progress.add_task("Running pipeline...", total=5)
+
+        # Step 1: Preprocess
+        progress.update(task, description="[cyan]Preprocessing reads...")
+        # preprocess(...)
+        progress.advance(task)
+
+        # Step 2: Mapping
+        progress.update(task, description="[cyan]Mapping to reference...")
+        # run_mapping(...)
+        progress.advance(task)
+
+        # ... etc
+
+    console.print("[green]✓ Pipeline complete![/]")
+
+
+if __name__ == "__main__":
+    app()
+```
+
+**pyproject.toml update:**
+
+```toml
+[project.scripts]
+umierrorcorrect = "umierrorcorrect.cli:app"
+# Keep legacy entry points for backwards compatibility (optional)
+filter_bam = "umierrorcorrect.cli:filter"
+preprocess = "umierrorcorrect.cli:preprocess"
+```
+
+**CLI output examples:**
+
+```
+$ umierrorcorrect --help
+
+ Usage: umierrorcorrect [OPTIONS] COMMAND [ARGS]...
+
+ UMIErrorCorrect: UMI-based error correction for amplicon sequencing.
+
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --version  -v        Show version and exit.                                  │
+│ --help               Show this message and exit.                             │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ filter       Filter BAM file by consensus depth.                             │
+│ preprocess   Preprocess FASTQ files: extract UMIs and merge reads.           │
+│ run          Run the complete UMI error correction pipeline.                 │
+│ ...                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+$ umierrorcorrect filter -i input.bam -o output.bam -c 5
+⠋ Filtering BAM...
+✓ Wrote 1,234,567 reads to output.bam
+```
+
+**Migration steps:**
+1. Add `typer[all]` to dependencies in pyproject.toml
+2. Create `cli.py` with Typer app and subcommands
+3. Move argument definitions from each script to `cli.py` as Typer options
+4. Ensure core functions have clean signatures (Path objects, no argparse)
+5. Add Rich progress bars and formatted output where appropriate
+6. Update `pyproject.toml` entry points
+7. Add deprecation warnings to old entry points (optional)
+
+### 4.9 Comprehensive Logging with Loguru
+
+Replace ad-hoc print statements and basic logging with [Loguru](https://github.com/Delgan/loguru) for structured, configurable logging throughout the pipeline.
+
+**Why Loguru over stdlib logging:**
+- Zero boilerplate - no handlers, formatters, or config files
+- Automatic exception formatting with full traceback
+- Built-in rotation, retention, and compression
+- Lazy evaluation of log messages (no f-string overhead when disabled)
+- Easy integration with Rich for colored console output
+- Structured logging (JSON) for production environments
+
+**Add dependency to pyproject.toml:**
+
+```toml
+dependencies = [
+    "pysam>=0.8.4",
+    "scipy",
+    "matplotlib",
+    "typer[all]>=0.9.0",
+    "loguru>=0.7.0",
+]
+```
+
+**Create logging configuration module:**
+
+```python
+# umierrorcorrect/logging_config.py
+import sys
+from pathlib import Path
+from typing import Optional
+
+from loguru import logger
+
+# Remove default handler
+logger.remove()
+
+def setup_logging(
+    verbosity: int = 0,
+    log_file: Optional[Path] = None,
+    json_logs: bool = False,
+) -> None:
+    """Configure logging for the pipeline.
+
+    Args:
+        verbosity: 0=WARNING, 1=INFO, 2=DEBUG
+        log_file: Optional path to log file
+        json_logs: If True, output structured JSON logs
+    """
+    # Map verbosity to log level
+    level_map = {0: "WARNING", 1: "INFO", 2: "DEBUG"}
+    level = level_map.get(verbosity, "DEBUG")
+
+    # Console handler with Rich-compatible formatting
+    console_format = (
+        "<level>{level: <8}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+        "<level>{message}</level>"
+    )
+
+    # Simpler format for normal users (verbosity=0)
+    simple_format = "<level>{level: <8}</level> | <level>{message}</level>"
+
+    logger.add(
+        sys.stderr,
+        format=simple_format if verbosity == 0 else console_format,
+        level=level,
+        colorize=True,
+    )
+
+    # File handler (if specified)
+    if log_file:
+        file_format = (
+            "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | "
+            "{name}:{function}:{line} - {message}"
+        )
+
+        if json_logs:
+            logger.add(
+                log_file,
+                format="{message}",
+                level="DEBUG",
+                serialize=True,  # JSON output
+                rotation="10 MB",
+                retention="1 week",
+                compression="gz",
+            )
+        else:
+            logger.add(
+                log_file,
+                format=file_format,
+                level="DEBUG",
+                rotation="10 MB",
+                retention="1 week",
+                compression="gz",
+            )
+
+
+def get_logger(name: str):
+    """Get a logger instance bound with module name.
+
+    Args:
+        name: Module name (typically __name__)
+
+    Returns:
+        Bound logger instance
+    """
+    return logger.bind(name=name)
+```
+
+**Integrate with CLI:**
+
+```python
+# cli.py
+from pathlib import Path
+from typing import Annotated, Optional
+
+import typer
+from loguru import logger
+
+from umierrorcorrect.logging_config import setup_logging
+
+app = typer.Typer()
+
+
+@app.callback()
+def main(
+    verbose: Annotated[
+        int,
+        typer.Option(
+            "--verbose", "-v",
+            count=True,
+            help="Increase verbosity (-v=INFO, -vv=DEBUG)"
+        ),
+    ] = 0,
+    log_file: Annotated[
+        Optional[Path],
+        typer.Option("--log-file", "-l", help="Write logs to file"),
+    ] = None,
+    json_logs: Annotated[
+        bool,
+        typer.Option("--json-logs", help="Output structured JSON logs"),
+    ] = False,
+):
+    """UMIErrorCorrect: UMI-based error correction for amplicon sequencing."""
+    setup_logging(verbosity=verbose, log_file=log_file, json_logs=json_logs)
+
+
+@app.command()
+def run(
+    infile1: Annotated[Path, typer.Option("--read1", "-r1")],
+    # ... other args
+):
+    """Run the complete pipeline."""
+    logger.info("Starting UMIErrorCorrect pipeline")
+    logger.debug(f"Input file: {infile1}")
+
+    try:
+        # ... pipeline steps
+        logger.info("Preprocessing reads")
+        # preprocess(...)
+
+        logger.info("Mapping to reference")
+        # run_mapping(...)
+
+        logger.success("Pipeline completed successfully")
+
+    except Exception as e:
+        logger.exception("Pipeline failed")
+        raise typer.Exit(1)
+```
+
+**Usage in core modules:**
+
+```python
+# umierrorcorrect/src/get_consensus3.py
+from umierrorcorrect.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+
+def getConsensus3(reads, contig, regionid, ...):
+    """Generate consensus sequence from reads."""
+    logger.debug(f"Processing region {contig}:{regionid} with {len(reads)} reads")
+
+    # ... processing logic
+
+    if read_count < min_reads:
+        logger.warning(
+            f"Low read count for region {regionid}: {read_count} < {min_reads}"
+        )
+
+    logger.trace(f"Consensus quality scores: {qual_scores}")  # Very verbose
+
+    return consensus_read
+```
+
+```python
+# umierrorcorrect/umi_error_correct.py
+from umierrorcorrect.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+
+def cluster_consensus_worker(args):
+    """Worker function for parallel consensus generation."""
+    contig, pos, umis, bamfile, ... = args
+
+    logger.debug(f"Worker processing {contig}:{pos} with {len(umis)} UMIs")
+
+    with logger.contextualize(region=f"{contig}:{pos}"):
+        # All logs in this block include region context
+        for umi, reads in umis.items():
+            logger.trace(f"Clustering UMI {umi} with {len(reads)} reads")
+            # ... clustering logic
+
+    logger.debug(f"Worker completed {contig}:{pos}")
+    return results
+```
+
+**Log output examples:**
+
+```bash
+# Default (WARNING only)
+$ umierrorcorrect run -r1 reads_R1.fq.gz -r2 reads_R2.fq.gz -o output/
+WARNING  | Low read count for region chr1:12345: 2 < 3
+
+# Verbose (-v = INFO)
+$ umierrorcorrect run -v -r1 reads_R1.fq.gz ...
+INFO     | Starting UMIErrorCorrect pipeline
+INFO     | Preprocessing reads
+INFO     | Mapping to reference
+INFO     | Running UMI error correction
+WARNING  | Low read count for region chr1:12345: 2 < 3
+INFO     | Calling variants
+SUCCESS  | Pipeline completed successfully
+
+# Very verbose (-vv = DEBUG)
+$ umierrorcorrect run -vv -r1 reads_R1.fq.gz ...
+DEBUG    | get_consensus3:getConsensus3:45 - Processing region chr1:12345 with 150 reads
+DEBUG    | umi_error_correct:cluster_consensus_worker:89 - Worker processing chr1:12345 with 23 UMIs
+...
+
+# With log file (captures everything)
+$ umierrorcorrect run -v --log-file pipeline.log -r1 reads_R1.fq.gz ...
+
+# JSON logs for parsing/monitoring
+$ umierrorcorrect run --json-logs --log-file pipeline.jsonl -r1 reads_R1.fq.gz ...
+```
+
+**JSON log output (for monitoring/parsing):**
+
+```json
+{"text": "Starting UMIErrorCorrect pipeline", "record": {"elapsed": {"repr": "0:00:00.001", "seconds": 0.001}, "level": {"name": "INFO", "no": 20}, "name": "umierrorcorrect.cli", "time": {"repr": "2024-01-15 10:30:00.123", "timestamp": 1705312200.123}}}
+{"text": "Processing region chr1:12345 with 150 reads", "record": {"level": {"name": "DEBUG", "no": 10}, "extra": {"region": "chr1:12345"}, ...}}
+```
+
+**Timing and performance logging:**
+
+```python
+from loguru import logger
+from time import perf_counter
+from contextlib import contextmanager
+
+
+@contextmanager
+def log_duration(description: str):
+    """Context manager to log operation duration."""
+    start = perf_counter()
+    logger.info(f"Starting: {description}")
+    try:
+        yield
+    finally:
+        elapsed = perf_counter() - start
+        logger.info(f"Completed: {description} ({elapsed:.2f}s)")
+
+
+# Usage:
+with log_duration("consensus generation for chr1"):
+    consensus = generate_consensus(reads)
+```
+
+**Integration with multiprocessing:**
+
+```python
+# For multiprocessing, configure logging in each worker
+from loguru import logger
+import multiprocessing
+
+
+def worker_init(log_queue):
+    """Initialize logging in worker process."""
+    logger.remove()
+    logger.add(log_queue.put, format="{message}", level="DEBUG")
+
+
+def run_parallel(regions, num_workers):
+    """Run parallel processing with centralized logging."""
+    log_queue = multiprocessing.Queue()
+
+    with multiprocessing.Pool(
+        num_workers,
+        initializer=worker_init,
+        initargs=(log_queue,)
+    ) as pool:
+        # ... parallel work
+
+    # Drain log queue in main process
+    while not log_queue.empty():
+        logger.info(log_queue.get())
+```
+
+**Migration steps:**
+1. Add `loguru>=0.7.0` to dependencies
+2. Create `umierrorcorrect/logging_config.py`
+3. Add `--verbose`, `--log-file`, `--json-logs` options to CLI
+4. Replace `print()` statements with appropriate log levels:
+   - `print(f"Processing {x}")` → `logger.info(f"Processing {x}")`
+   - `print(f"Warning: {x}")` → `logger.warning(x)`
+   - Debug/trace output → `logger.debug()` or `logger.trace()`
+5. Add `logger.exception()` in exception handlers
+6. Use `logger.contextualize()` for region/UMI context in workers
+7. Add timing logs for performance monitoring
 
 ---
 
