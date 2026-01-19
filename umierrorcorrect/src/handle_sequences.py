@@ -10,7 +10,7 @@ def read_fastq(infile):
         infile.readline()
         # qualname=infile.readline().rstrip()
         qual = infile.readline().rstrip()
-        yield(name, seq, qual)
+        yield (name, seq, qual)
 
 
 def read_fastq_paired_end(r1file, r2file):
@@ -24,4 +24,4 @@ def read_fastq_paired_end(r1file, r2file):
         r2file.readline()
         qual1 = r1file.readline().rstrip()
         qual2 = r2file.readline().rstrip()
-        yield(name1, seq1, qual1, name2, seq2, qual2)
+        yield (name1, seq1, qual1, name2, seq2, qual2)

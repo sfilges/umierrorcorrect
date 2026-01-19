@@ -1,16 +1,24 @@
 #!/usr/bin/env python3
 
-import sys
 import pickle
-import pysam
+import sys
+
 # from umi_cluster import umi_cluster
 from collections import Counter
-from umierrorcorrect.src.get_consensus3 import get_cons_dict, get_all_consensus, get_reference_sequence
-from umierrorcorrect.src.get_regions_from_bed import read_bed, sort_regions, merge_regions, get_annotation, get_annotation2
+
+import pysam
+
+from umierrorcorrect.src.get_consensus3 import get_all_consensus, get_cons_dict, get_reference_sequence
+from umierrorcorrect.src.get_regions_from_bed import (
+    get_annotation2,
+    merge_regions,
+    read_bed,
+    sort_regions,
+)
 
 
 def get_cons_info(consensus_seq, singletons, fsizes=[0, 1, 2, 3, 4, 5, 7, 10, 20, 30]):
-    '''loop through the consensus reads to collapse alleles for each position'''
+    """loop through the consensus reads to collapse alleles for each position"""
     cons = {}
     for consensus_read in consensus_seq.values():
         if consensus_read:
@@ -24,81 +32,81 @@ def get_cons_info(consensus_seq, singletons, fsizes=[0, 1, 2, 3, 4, 5, 7, 10, 20
                         if fsize == 0:
                             if fsize not in cons[pos]:
                                 cons[pos][fsize] = Counter()
-                            if base not in 'N':
+                            if base not in "N":
                                 cons[pos][fsize][base] += count
                         elif count >= fsize:
                             if fsize not in cons[pos]:
                                 cons[pos][fsize] = Counter()
-                            if base not in 'N':
+                            if base not in "N":
                                 cons[pos][fsize][base] += 1
                     pos += 1
             else:
                 i = 0
-                skipbase=[]
+                skipbase = []
                 cigar = consensus_read.cigarstring
                 for base in consensus_read.seq:
                     c = cigar[i]
                     if i not in skipbase:
                         if pos not in cons:
                             cons[pos] = {}
-                        if c == '0':  # match or mismatch
+                        if c == "0":  # match or mismatch
                             for fsize in fsizes:
                                 if fsize == 0:
                                     if fsize not in cons[pos]:
                                         cons[pos][fsize] = Counter()
-                                    if not base == 'N':
+                                    if not base == "N":
                                         cons[pos][fsize][base] += count
                                 elif count >= fsize:
                                     if fsize not in cons[pos]:
                                         cons[pos][fsize] = Counter()
-                                    if not base == 'N':
+                                    if not base == "N":
                                         cons[pos][fsize][base] += 1
                             pos += 1
                             i += 1
-                        elif c == '1':  # insertion
-                            if cigar[i+1] == '1': #if next base also have an insertion
-                                j=0
-                                insertion=True
+                        elif c == "1":  # insertion
+                            if cigar[i + 1] == "1":  # if next base also have an insertion
+                                j = 0
+                                insertion = True
                                 while insertion:
-                                    j+=1
-                                    if cigar[i+j]=='1':
-                                        skipbase.append(i+j)
+                                    j += 1
+                                    if cigar[i + j] == "1":
+                                        skipbase.append(i + j)
                                     else:
-                                        insertion=False
-                                #insstring=consensus_read.seq[i-1:i+j-1]
-                            #else:
+                                        insertion = False
+                                # insstring=consensus_read.seq[i-1:i+j-1]
+                            # else:
                             #    insstring=consensus_read.seq[i-1]
                             for fsize in fsizes:
                                 if fsize == 0:
                                     if fsize not in cons[pos]:
                                         cons[pos][fsize] = Counter()
-                                    cons[pos][fsize]['I'] += count
+                                    cons[pos][fsize]["I"] += count
                                 elif count >= fsize:
                                     if fsize not in cons[pos]:
                                         cons[pos][fsize] = Counter()
-                                    cons[pos][fsize]['I'] += 1
+                                    cons[pos][fsize]["I"] += 1
                             i += 1
-                        elif c == '2':  # deletion
+                        elif c == "2":  # deletion
                             for fsize in fsizes:
                                 if fsize == 0:
                                     if fsize not in cons[pos]:
                                         cons[pos][fsize] = Counter()
-                                    cons[pos][fsize]['D'] += count
+                                    cons[pos][fsize]["D"] += count
 
                                 elif count >= fsize:
                                     if fsize not in cons[pos]:
                                         cons[pos][fsize] = Counter()
-                                    cons[pos][fsize]['D'] += 1
+                                    cons[pos][fsize]["D"] += 1
                             deletion = False
-                            if cigar[i+1] == '2':
+                            if cigar[i + 1] == "2":
                                 deletion = True
                                 while deletion:
                                     i += 1
                                     c = cigar[i]
                                     pos += 1
-                                    #if pos not in cons:
+                                    # if pos not in cons:
                                     #    cons[pos] = {}
-                                    #for fsize in fsizes:
+                                    # for fsize in fsizes:
                                     #    if fsize == 0:
                                     #        if fsize not in cons[pos]:
                                     #            cons[pos][fsize] = Counter()
@@ -108,7 +116,7 @@ def get_cons_info(consensus_seq, singletons, fsizes=[0, 1, 2, 3, 4, 5, 7, 10, 20
                                     #        if fsize not in cons[pos]:
                                     #            cons[pos][fsize] = Counter()
                                     #        cons[pos][fsize]['D'] += 1
-                                    if cigar[i+1] == '2':
+                                    if cigar[i + 1] == "2":
                                         deletion = True
                                     else:
                                         deletion = False
@@ -119,22 +127,21 @@ def get_cons_info(consensus_seq, singletons, fsizes=[0, 1, 2, 3, 4, 5, 7, 10, 20
                                 if fsize == 0:
                                     if fsize not in cons[pos]:
                                         cons[pos][fsize] = Counter()
-                                    if base not in 'N':
+                                    if base not in "N":
                                         cons[pos][fsize][base] += count
 
                                 elif count >= fsize:
                                     if fsize not in cons[pos]:
                                         cons[pos][fsize] = Counter()
-                                    if base not in 'N':
+                                    if base not in "N":
                                         cons[pos][fsize][base] += 1
                             pos += 1
                             i += 1
                     else:
                         i += 1
-                                  
-    for read in singletons.values():
 
-        if 'I' not in read.cigarstring and 'D' not in read.cigarstring:
+    for read in singletons.values():
+        if "I" not in read.cigarstring and "D" not in read.cigarstring:
             sequence = read.query_sequence
             for qpos, refpos in read.get_aligned_pairs(matches_only=True):
                 base = sequence[qpos]
@@ -159,10 +166,10 @@ def get_cons_info(consensus_seq, singletons, fsizes=[0, 1, 2, 3, 4, 5, 7, 10, 20
                     for fsize in [0, 1]:
                         if fsize not in cons[refpos]:
                             cons[refpos][fsize] = Counter()
-                        cons[refpos][fsize]['I'] += 1
-                        #cons[refpos][fsize][base] += 1
+                        cons[refpos][fsize]["I"] += 1
+                        # cons[refpos][fsize][base] += 1
                 elif not refpos == ref + 1:
-                        # deletion
+                    # deletion
                     dellength = refpos - (ref + 1)
                     delpos = refpos - dellength
                     if delpos not in cons:
@@ -170,7 +177,7 @@ def get_cons_info(consensus_seq, singletons, fsizes=[0, 1, 2, 3, 4, 5, 7, 10, 20
                     for fsize in [0, 1]:
                         if fsize not in cons[delpos]:
                             cons[delpos][fsize] = Counter()
-                        cons[delpos][fsize]['D'] += 1
+                        cons[delpos][fsize]["D"] += 1
                 sequence = read.query_sequence
                 base = sequence[qpos]
                 if refpos not in cons:
@@ -192,31 +199,30 @@ def get_cons_info(consensus_seq, singletons, fsizes=[0, 1, 2, 3, 4, 5, 7, 10, 20
                 q = qpos
                 ref = refpos
 
-    return(cons)
+    return cons
 
 
 def calc_major_nonref_allele_frequency(cons, ref, tot):
     comp = cons
     allele = max(comp, key=comp.get)
-    count=cons[allele]
-    
+    count = cons[allele]
+
     if tot > 0:
-        frac = 1.0*(cons[allele]/tot)
-    else: 
+        frac = 1.0 * (cons[allele] / tot)
+    else:
         frac = 0
 
     if frac > 0:
-        return((allele, frac, count))
+        return (allele, frac, count)
     else:
-        return(("", 0, 0))
+        return ("", 0, 0)
 
 
 def write_consensus(f, cons, ref_seq, start, contig, annotation, samplename, only_target_regions):
-    bases = ['A', 'C', 'G', 'T', 'I', 'D', 'N']
+    bases = ["A", "C", "G", "T", "I", "D", "N"]
     # print(list(cons.keys())[0],list(cons.keys())[-1],start,len(ref_seq))
 
     for pos in sorted(cons):
-        
         annotation_pos = get_annotation2(annotation, pos + 1)
         if not (annotation_pos == "" and only_target_regions):
             # if len(ref_seq)<(pos-start+1):
@@ -231,12 +237,12 @@ def write_consensus(f, cons, ref_seq, start, contig, annotation, samplename, onl
                 line.append(annotation_pos)
                 line.append(refbase)
                 consline = cons[pos][fsize]
-                tot = sum(consline[key] for key in consline if key != 'I')
+                tot = sum(consline[key] for key in consline if key != "I")
                 nonrefcons = {key: consline[key] for key in consline if key != refbase}
                 if len(nonrefcons) > 0:
                     mna, freq, count = calc_major_nonref_allele_frequency(nonrefcons, refbase, tot)
                 else:
-                    mna = ''
+                    mna = ""
                     freq = 0
                     count = 0
                 for base in bases:
@@ -249,15 +255,15 @@ def write_consensus(f, cons, ref_seq, start, contig, annotation, samplename, onl
                 line.append(str(count))
                 line.append(str(freq))
                 line.append(mna)
-                f.write('\t'.join(line) + '\n')
+                f.write("\t".join(line) + "\n")
 
 
 def main(bamfilename, bedfilename):
-    with open('/home/xsteto/umierrorcorrect/umi.pickle', 'rb') as f:
+    with open("/home/xsteto/umierrorcorrect/umi.pickle", "rb") as f:
         umis = pickle.load(f)
-    fasta = pysam.FastaFile('/medstore/External_References/hg19/Homo_sapiens_sequence_hg19.fasta')
-    ref_seq = get_reference_sequence(fasta, '17', 7577495, 7577800)
-    contig = '17'
+    fasta = pysam.FastaFile("/medstore/External_References/hg19/Homo_sapiens_sequence_hg19.fasta")
+    ref_seq = get_reference_sequence(fasta, "17", 7577495, 7577800)
+    contig = "17"
     start = 7577495
     end = 7577800
     position_matrix, singleton_matrix = get_cons_dict(bamfilename, umis, contig, start, end, True)
@@ -267,9 +273,9 @@ def main(bamfilename, bedfilename):
     regions = sort_regions(regions)
     regions = merge_regions(regions, 0)
     annotation = regions[contig]
-    with open('out/cons.out', 'w') as f:
+    with open("out/cons.out", "w") as f:
         write_consensus(f, cons, ref_seq, start, contig, annotation, False)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])

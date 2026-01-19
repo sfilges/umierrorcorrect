@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import sys
-import pysam
 from collections import Counter
-from umierrorcorrect.src.get_regions_from_bed import read_bed, \
-     sort_regions, merge_regions, expand_regions_from_bed
 
+import pysam
+
+from umierrorcorrect.src.get_regions_from_bed import expand_regions_from_bed, merge_regions, read_bed, sort_regions
 
 # class Region:
 #     def __init__(self, pos):
@@ -20,6 +20,7 @@ from umierrorcorrect.src.get_regions_from_bed import read_bed, \
 #         else:
 #             return(False)
 
+
 def get_chromosome_list_from_bam(f):
     contiglist = []
     for chrx in f.get_index_statistics():
@@ -33,7 +34,7 @@ def group_by_position(f, chrx, pos_threshold):
     ends = {}
     reads = f.fetch(chrx)
     current_pos = -pos_threshold
-    current_end = -(2*pos_threshold) + 1
+    current_end = -(2 * pos_threshold) + 1
     # current_aend=-pos_threshold
     for line in reads:
         pos = line.pos
@@ -45,12 +46,12 @@ def group_by_position(f, chrx, pos_threshold):
             current_end = pos
             # current_aend = line.reference_end
             regions[pos] = Counter()
-            barcode = line.qname.split(':')[-1]
+            barcode = line.qname.split(":")[-1]
             # if barcode not in regions[current_pos]:
             #     regions[current_pos][barcode]=0
             regions[current_pos][barcode] += 1
         else:
-            barcode = line.qname.split(':')[-1]
+            barcode = line.qname.split(":")[-1]
             # if barcode not in regions[current_pos]:
             #     regions[current_pos][barcode]=0
             regions[current_pos][barcode] += 1
@@ -59,7 +60,7 @@ def group_by_position(f, chrx, pos_threshold):
             # if aend > current_aend:
             #     current_aend = aend
     ends[current_pos] = current_end + 1
-    return(regions, ends)
+    return (regions, ends)
     # if len(regions)==0:
     #     r=Region(pos)
     #     regions.append(r)
@@ -69,6 +70,8 @@ def group_by_position(f, chrx, pos_threshold):
     #             #new region
     #             rnew=Region(pos)
     # for rr in regions:
+
+
 #     print(rr.start,rr.end)
 
 
@@ -77,32 +80,32 @@ def count_umis_in_region(f, chrx, pos_start, pos_end):
     reads = f.fetch(chrx, pos_start, pos_end)
     for line in reads:
         # pos = line.pos
-        barcode = line.qname.split(':')[-1]
+        barcode = line.qname.split(":")[-1]
         region[barcode] += 1
-    return(region)
+    return region
 
 
 def get_max_number_of_barcodes(regions, pos):
     if len(regions[pos]) > 0:
         umi, count = regions[pos].most_common(1)[0]
-        return(count)
+        return count
     else:
-        return(0)
+        return 0
 
 
 def remove_singleton_regions(regions, cutoff):
     newregions = {}
     for chrx in regions:
-        newregions[chrx] = dict((x, y) for (x, y) in regions[chrx].items()
-                                if get_max_number_of_barcodes(regions[chrx],
-                                x) > cutoff)
-    return(newregions)
+        newregions[chrx] = dict(
+            (x, y) for (x, y) in regions[chrx].items() if get_max_number_of_barcodes(regions[chrx], x) > cutoff
+        )
+    return newregions
 
 
 def readBam(infile, position_threshold):
-    '''Read grouped BAM-file (UMI-groups-sorted) and extract sequences from
-    each UMI-group and save one representative read from each group.'''
-    with pysam.AlignmentFile(infile, 'rb') as f:
+    """Read grouped BAM-file (UMI-groups-sorted) and extract sequences from
+    each UMI-group and save one representative read from each group."""
+    with pysam.AlignmentFile(infile, "rb") as f:
         chrs = get_chromosome_list_from_bam(f)
         chrregions = {}
         chrends = {}
@@ -120,7 +123,7 @@ def readBam(infile, position_threshold):
         #     regions2=regions[chrx]
         #     for rr in regions2:
         #         print(chrx,rr,regions2[rr].most_common(10))
-    return(regions, chrends)
+    return (regions, chrends)
 
 
 def read_bam_from_bed(infile, bedfile, position_threshold):
@@ -135,55 +138,55 @@ def read_bam_from_bed(infile, bedfile, position_threshold):
         for a, b, c in regions[contig]:
             newregions.append((contig, a, b, c))
 
-    with pysam.AlignmentFile(infile, 'rb') as f:
+    with pysam.AlignmentFile(infile, "rb") as f:
         chrs = get_chromosome_list_from_bam(f)
         for contig, start, end, name in newregions:
             if contig in chrs:
                 if contig not in chrregions:
                     chrregions[contig] = {}
-                chrregions[contig][start] = count_umis_in_region(f, contig,
-                                                                 start, end)
+                chrregions[contig][start] = count_umis_in_region(f, contig, start, end)
                 if contig not in chrends:
                     chrends[contig] = {}
                 chrends[contig][start] = end
         regions = remove_singleton_regions(chrregions, 2)
-    return(regions, chrends)
+    return (regions, chrends)
 
 
 def read_bam_from_tag(infile):
-    regions={}
-    starts={}
-    ends={}
-    with pysam.AlignmentFile(infile, 'rb') as f:
-        reads=f.fetch()
+    regions = {}
+    starts = {}
+    ends = {}
+    with pysam.AlignmentFile(infile, "rb") as f:
+        reads = f.fetch()
         for r in reads:
             contig = r.reference_name
             if contig not in regions:
-                regions[contig]={}
-                starts[contig]={}
-                ends[contig]={}
+                regions[contig] = {}
+                starts[contig] = {}
+                ends[contig] = {}
             try:
-                utag = r.get_tag('UG')
+                utag = r.get_tag("UG")
             except KeyError:
-                print('UG tag not present in BAM file')
-                utag = ''
+                print("UG tag not present in BAM file")
+                utag = ""
             if utag not in regions[contig]:
                 regions[contig][utag] = Counter()
                 starts[contig][utag] = r.reference_start
                 ends[contig][utag] = r.reference_end
-            barcode = r.qname.split(':')[-1]
+            barcode = r.qname.split(":")[-1]
             regions[contig][utag][barcode] += 1
             if r.reference_end > ends[contig][utag]:
-                ends[contig][utag]=r.reference_end
-    return(regions,starts,ends)
+                ends[contig][utag] = r.reference_end
+    return (regions, starts, ends)
+
 
 def main(filename, bedfile):
     position_threshold = 10
-    group_method = 'automatic'
+    group_method = "automatic"
     # group_method='fromBed'
-    if group_method == 'fromBed':
+    if group_method == "fromBed":
         regions = read_bam_from_bed(filename, bedfile, position_threshold)
-    elif group_method == 'fromTag':
+    elif group_method == "fromTag":
         regions = read_bam_from_tag(filename)
     else:
         regions, chrends = readBam(filename, position_threshold)
@@ -193,5 +196,5 @@ def main(filename, bedfile):
             print(chrx, rr, chrends[chrx][rr], regions2[rr].most_common(10))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])

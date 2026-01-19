@@ -1,0 +1,147 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "umierrorcorrect"
+dynamic = ["version"]
+description = "Pipeline for analyzing barcoded amplicon sequencing data with Unique Molecular Identifiers (UMI)"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "Tobias Osterlund", email = "tobias.osterlund@gu.se" }
+]
+classifiers = [
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "pysam>=0.8.4",
+    "scipy",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pytest",
+    "pytest-cov",
+    "mypy",
+    "pre-commit",
+]
+
+[project.scripts]
+run_umierrorcorrect = "umierrorcorrect.run_umierrorcorrect:main_cli"
+preprocess = "umierrorcorrect.preprocess:main_cli"
+run_mapping = "umierrorcorrect.run_mapping:main_cli"
+umi_error_correct = "umierrorcorrect.umi_error_correct:main_cli"
+get_consensus_statistics = "umierrorcorrect.get_consensus_statistics:main_cli"
+call_variants = "umierrorcorrect.call_variants:main_cli"
+filter_bam = "umierrorcorrect.filter_bam:main_cli"
+filter_cons = "umierrorcorrect.filter_cons:main_cli"
+downsampling_plots = "umierrorcorrect.downsampling_plots:main_cli"
+fit_background_model = "umierrorcorrect.fit_background_model:main_cli"
+
+[project.urls]
+Homepage = "https://github.com/stahlberggroup/umierrorcorrect"
+Documentation = "https://github.com/stahlberggroup/umierrorcorrect/wiki"
+Repository = "https://github.com/stahlberggroup/umierrorcorrect"
+
+[tool.hatch.version]
+path = "umierrorcorrect/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/umierrorcorrect",
+    "/test_data",
+    "/doc",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["umierrorcorrect"]
+
+# Ruff configuration
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+src = ["umierrorcorrect"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "S",      # flake8-bandit (security)
+    "PTH",    # flake8-use-pathlib
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "S101",   # assert usage (ok in tests)
+]
+fixable = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "ARG"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# Pytest configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "requires_bwa: marks tests that require bwa installed",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:pysam.*",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["umierrorcorrect"]
+branch = true
+omit = [
+    "*/test_*.py",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+show_missing = true
+
+# Mypy configuration
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = ["tests/", "build/"]
+
+[[tool.mypy.overrides]]
+module = "pysam.*"
+ignore_missing_imports = true
