@@ -14,7 +14,6 @@ Preprocess the fastq files by removing the unique molecular index and add it to 
 
 import argparse
 import logging
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -120,10 +119,11 @@ def parseArgs():
 
 def check_output_directory(outdir):
     """Check if outdir exists, otherwise create it"""
-    if os.path.isdir(outdir):
+    outdir_path = Path(outdir)
+    if outdir_path.is_dir():
         return outdir
     else:
-        os.mkdir(outdir)
+        outdir_path.mkdir()
         return outdir
 
 
@@ -144,7 +144,7 @@ def run_unpigz(filename, tmpdir, num_threads, program):
         command = ["unpigz", "-p", num_threads, "-c", filename]
     elif program == "gzip":
         command = ["gunzip", "-c", filename]
-    with open(outfilename, "w") as g:
+    with outfilename.open("w") as g:
         p = subprocess.Popen(command, stdout=g)
         p.communicate()
         p.wait()
@@ -156,7 +156,7 @@ def run_gunzip(filename, tmpdir):
     input_path = Path(filename)
     outfilename = Path(tmpdir) / input_path.name.removesuffix(".gz")
     command = ["gunzip", "-c", filename]
-    with open(outfilename, "w") as g:
+    with outfilename.open("w") as g:
         p = subprocess.Popen(command, stdout=g)
         p.communicate()
         p.wait()
@@ -176,7 +176,7 @@ def run_pigz(filename, num_threads, program):
 
 def preprocess_se(infilename, outfilename, barcode_length, spacer_length):
     """Run the preprocessing for single end data (one fastq file)."""
-    with open(infilename) as f, open(outfilename, "w") as g:
+    with Path(infilename).open() as f, Path(outfilename).open("w") as g:
         read_start = barcode_length + spacer_length
         nseqs = 0
         for name, seq, qual in read_fastq(f):
@@ -192,7 +192,12 @@ def preprocess_se(infilename, outfilename, barcode_length, spacer_length):
 def preprocess_pe(r1file, r2file, outfile1, outfile2, barcode_length, spacer_length, dual_index):
     """Run the preprocessing for paired end data (two fastq files)."""
     read_start = barcode_length + spacer_length
-    with open(r1file) as f1, open(r2file) as f2, open(outfile1, "w") as g1, open(outfile2, "w") as g2:
+    with (
+        Path(r1file).open() as f1,
+        Path(r2file).open() as f2,
+        Path(outfile1).open("w") as g1,
+        Path(outfile2).open("w") as g2,
+    ):
         nseqs = 0
         for name1, seq1, qual1, name2, seq2, qual2 in read_fastq_paired_end(f1, f2):
             nseqs += 1
@@ -236,7 +241,7 @@ def run_preprocessing(args):
             r1file = run_unpigz(args.read1, newtmpdir, args.num_threads, args.gziptool)
 
     logging.info(f"Writing output files to {args.output_path}")
-    if args.adapter_trimming == True:
+    if args.adapter_trimming is True:
         if args.adapter_sequence.lower() == "illumina":
             adapter = "AGATCGGAAGAGC"
         elif args.adapter_sequence.lower() == "nextera":
@@ -275,11 +280,11 @@ def run_preprocessing(args):
         p.communicate()
         p.wait()
         if args.mode == "single":
-            os.remove(r1file)
+            Path(r1file).unlink()
             r1file = outfilename
         else:
-            os.remove(r1file)
-            os.remove(r2file)
+            Path(r1file).unlink()
+            Path(r2file).unlink()
             r1file = outfile1
             r2file = outfile2
 
@@ -288,8 +293,8 @@ def run_preprocessing(args):
         outfilename = str(output_path / f"{args.sample_name}_umis_in_header.fastq")
         nseqs = preprocess_se(r1file, outfilename, args.umi_length, args.spacer_length)
         run_pigz(outfilename, args.num_threads, args.gziptool)
-        os.remove(r1file)
-        os.rmdir(newtmpdir)
+        Path(r1file).unlink()
+        Path(newtmpdir).rmdir()
         fastqfiles = [f"{outfilename}.gz"]
     else:
         if args.reverse_index:
@@ -307,11 +312,13 @@ def run_preprocessing(args):
         nseqs = preprocess_pe(r1file, r2file, outfile1, outfile2, args.umi_length, args.spacer_length, args.dual_index)
         run_pigz(outfile1, args.num_threads, args.gziptool)
         run_pigz(outfile2, args.num_threads, args.gziptool)
-        if removerfiles == True and os.path.isfile(r1file):
-            os.remove(r1file)
-        if removerfiles == True and os.path.isfile(r2file):
-            os.remove(r2file)
-        os.rmdir(newtmpdir)
+        r1path = Path(r1file)
+        r2path = Path(r2file)
+        if removerfiles is True and r1path.is_file():
+            r1path.unlink()
+        if removerfiles is True and r2path.is_file():
+            r2path.unlink()
+        Path(newtmpdir).rmdir()
         fastqfiles = [outfile1 + ".gz", outfile2 + ".gz"]
     logging.info("Finished preprocessing")
     return (fastqfiles, nseqs)

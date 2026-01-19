@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import logging
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -59,10 +58,11 @@ def parseArgs():
 
 def check_output_directory(outdir):
     """Check if outdir exists, otherwise create it"""
-    if os.path.isdir(outdir):
+    outdir_path = Path(outdir)
+    if outdir_path.is_dir():
         return outdir
     else:
-        os.mkdir(outdir)
+        outdir_path.mkdir()
         return outdir
 
 
@@ -81,11 +81,12 @@ def get_sample_name(read1, mode):
 
 def check_bwa_index(reference_file):
     """Check if BWA index files exists, otherwise create"""
-    if not os.path.isfile(reference_file):
+    ref_path = Path(reference_file)
+    if not ref_path.is_file():
         print(f"Reference genome file {reference_file} does not exist, exiting")
         sys.exit(1)
     else:
-        if not os.path.isfile(reference_file + ".bwt"):  # check if index exists
+        if not Path(reference_file + ".bwt").is_file():  # check if index exists
             print(f"BWA index for reference genome file {reference_file} does not exist")
             answer = input("Do you want to create a BWA index now? (y/n) ".lower().strip())
             while not (answer == "y" or answer == "yes" or answer == "n" or answer == "no"):
@@ -115,7 +116,7 @@ def run_mapping(num_threads, reference_file, fastq_files, output_path, sample_na
     if len(fastq_files) == 2:
         bwacommand = ["bwa", "mem", "-t", num_threads, reference_file, fastq_files[0], fastq_files[1]]
 
-    with open(sam_file, "w") as g:
+    with Path(sam_file).open("w") as g:
         p1 = subprocess.Popen(bwacommand, stdout=g)
     p1.communicate()
     p1.wait()
@@ -123,12 +124,12 @@ def run_mapping(num_threads, reference_file, fastq_files, output_path, sample_na
 
     pysam.sort("-@", num_threads, bam_file, "-o", sorted_bam, catch_stdout=False)
     pysam.index(sorted_bam, catch_stdout=False)
-    os.remove(sam_file)
-    os.remove(bam_file)
+    Path(sam_file).unlink()
+    Path(bam_file).unlink()
     if remove_large_files:
-        os.remove(fastq_files[0])
+        Path(fastq_files[0]).unlink()
         if len(fastq_files) == 2:
-            os.remove(fastq_files[1])
+            Path(fastq_files[1]).unlink()
     logging.info("Finished mapping")
     return sorted_bam
 

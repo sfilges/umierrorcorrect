@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 import argparse
-import glob
 import json
 import logging
-import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
 
@@ -154,10 +154,11 @@ def parseArgs():
 
 def check_output_directory(outdir):
     """Check if outdir exists, otherwise create it"""
-    if os.path.isdir(outdir):
+    outdir_path = Path(outdir)
+    if outdir_path.is_dir():
         return outdir
     else:
-        os.mkdir(outdir)
+        outdir_path.mkdir()
         return outdir
 
 
@@ -242,7 +243,7 @@ def cluster_consensus_worker(args):
             if cons_read:
                 outputlist.append(write_to_json(cons_read))
         json_object = json.dumps(outputlist)
-        with open(json_filename, "w") as f:
+        with Path(json_filename).open("w") as f:
             f.write(json_object)
 
     # Generate info for cons file
@@ -254,14 +255,13 @@ def cluster_consensus_worker(args):
         endpos = max(list(cons.keys())) + 1  # take the leftmost coordinate as end
         with pysam.FastaFile(fasta) as f:
             ref_seq = get_reference_sequence(f, contig, startpos, endpos)
-        with open(consfilename, "w") as g:
+        with Path(consfilename).open("w") as g:
             write_consensus(g, cons, ref_seq, startpos, contig, annotations, samplename, False)
     else:  # empty file
-        g = open(consfilename, "w")
-        g.close()
+        Path(consfilename).touch()
     # Write to hist/stat file
     if len(cons) > 0:
-        with open(statfilename, "w") as g2:
+        with Path(statfilename).open("w") as g2:
             name = get_overlap(annotations, start, endpos)
             regionname = f"{contig}:{start}-{endpos}"
             g2.write(
@@ -277,8 +277,7 @@ def cluster_consensus_worker(args):
                 + "\n"
             )
     else:  # empty file
-        g = open(statfilename, "w")
-        g.close()
+        Path(statfilename).touch()
 
 
 def update_bam_header(bamfile, samplename):
@@ -302,23 +301,23 @@ def merge_bams(output_path, original_bamfile, bamfilelist, sample_name):
     g.close()
 
     for filename in bamfilelist:
-        os.remove(filename)
+        Path(filename).unlink()
 
 
 def merge_cons(output_path, consfilelist, sample_name):
     """Merge all cons files in consfilelist and remove temporary files."""
     output_tsv = Path(output_path) / f"{sample_name}_cons.tsv"
-    with open(output_tsv, "w") as g:
+    with output_tsv.open("w") as g:
         g.write(
             "Sample Name\tContig\tPosition\tName\tReference\tA\tC\tG\tT\tI\tD\tN\tCoverage\tConsensus group size\tMax Non-ref Allele Count\tMax Non-ref Allele Frequency\tMax Non-ref Allele\n"
         )
         for filename in consfilelist:
-            with open(filename) as f:
+            with Path(filename).open() as f:
                 for line in f:
                     g.write(line)
 
     for filename in consfilelist:
-        os.remove(filename)
+        Path(filename).unlink()
 
 
 def check_duplicate_positions(cons_file):
@@ -326,15 +325,12 @@ def check_duplicate_positions(cons_file):
 
     Uses proper temporary files and avoids shell=True for security.
     """
-    import shutil
-    import tempfile
-
     chrlist = []
 
     # Create temporary files in a secure way
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as tmp1:
         tmp1_path = tmp1.name
-        with open(cons_file) as f:
+        with Path(cons_file).open() as f:
             f.readline()
             for line in f:
                 parts = line.split("\t")
@@ -352,7 +348,7 @@ def check_duplicate_positions(cons_file):
         sort_cmd = shutil.which("sort") or "sort"
         uniq_cmd = shutil.which("uniq") or "uniq"
 
-        with open(tmp2_path, "w") as outfile:
+        with Path(tmp2_path).open("w") as outfile:
             # Chain: sort tmp1 | uniq -d > tmp2
             p1 = subprocess.Popen([sort_cmd, tmp1_path], stdout=subprocess.PIPE)
             p2 = subprocess.Popen([uniq_cmd, "-d"], stdin=p1.stdout, stdout=outfile)
@@ -363,7 +359,7 @@ def check_duplicate_positions(cons_file):
         for chrx in chrlist:
             duppos[chrx] = []
 
-        with open(tmp2_path) as f:
+        with Path(tmp2_path).open() as f:
             for line in f:
                 line = line.rstrip()
                 parts = line.split()
@@ -376,10 +372,12 @@ def check_duplicate_positions(cons_file):
 
     finally:
         # Clean up temporary files
-        if os.path.exists(tmp1_path):
-            os.remove(tmp1_path)
-        if os.path.exists(tmp2_path):
-            os.remove(tmp2_path)
+        tmp1 = Path(tmp1_path)
+        tmp2 = Path(tmp2_path)
+        if tmp1.exists():
+            tmp1.unlink()
+        if tmp2.exists():
+            tmp2.unlink()
 
 
 def sum_lists(*args):
@@ -391,7 +389,7 @@ def merge_duplicate_positions(args):
     dupcons = {}
     a = 13
     b = 2
-    with open(cons_file) as f:
+    with Path(cons_file).open() as f:
         line = f.readline()
         for line in f:
             parts = line.split("\t")
@@ -412,7 +410,7 @@ def merge_duplicate_positions(args):
             for s in dupcons[pos][fsize]:
                 parts = s.split("\t")
                 newpos[pos][fsize] = [int(a) + int(b) for a, b in zip(newpos[pos][fsize], parts[5:15])]
-    with open(cons_file) as f, open(cons_file + "_new" + chrx, "w") as g:
+    with Path(cons_file).open() as f, Path(cons_file + "_new" + chrx).open("w") as g:
         line = f.readline()
         g.write(line)
         positions = []
@@ -475,9 +473,10 @@ def merge_duplicate_positions_all_chromosomes(duppos, cons_file, num_cpus):
     p = Pool(int(num_cpus))
     p.map(merge_duplicate_positions, argvec)
     merge_tmp_cons_files(duppos.keys(), cons_file)
-    if os.path.isfile(cons_file + "2"):
-        os.remove(cons_file)
-        os.rename(cons_file + "2", cons_file)
+    cons_file2 = Path(cons_file + "2")
+    if cons_file2.is_file():
+        Path(cons_file).unlink()
+        cons_file2.rename(cons_file)
 
 
 def merge_tmp_cons_files(chrlist, cons_file):
@@ -486,39 +485,39 @@ def merge_tmp_cons_files(chrlist, cons_file):
     except ValueError:
         chrlist_sorted = sorted(chrlist)
     tmpfilelist = [cons_file + "_new" + str(x) for x in chrlist_sorted]
-    with open(cons_file + "2", "w") as g:
+    with Path(cons_file + "2").open("w") as g:
         i = 0
         for filename in tmpfilelist:
-            with open(filename) as f:
+            with Path(filename).open() as f:
                 if i > 0:
                     f.readline()
                 for line in f:
                     g.write(line)
                 i += 1
     for filename in tmpfilelist:
-        os.remove(filename)
+        Path(filename).unlink()
 
 
 def merge_stat(output_path, statfilelist, sample_name):
     """Merge all stat files in statfilelist and remove temporary files."""
     output_hist = Path(output_path) / f"{sample_name}.hist"
-    with open(output_hist, "w") as g:
+    with output_hist.open("w") as g:
         for filename in statfilelist:
-            with open(filename) as f:
+            with Path(filename).open() as f:
                 for line in f:
                     g.write(line)
 
     for filename in statfilelist:
-        os.remove(filename)
+        Path(filename).unlink()
 
 
 def merge_duplicate_stat(output_path, samplename):
-    convert = lambda text: int(text) if text.isdigit() else text.lower()
-    alphanum_key = lambda key: [convert(c) for c in re.split("([0-9]+)", key)]
+    convert = lambda text: int(text) if text.isdigit() else text.lower()  # noqa: E731
+    alphanum_key = lambda key: [convert(c) for c in re.split("([0-9]+)", key)]  # noqa: E731
     histfile = Path(output_path) / f"{samplename}.hist"
     regions = {}
     # histfile
-    with open(histfile) as f:
+    with histfile.open() as f:
         for line in f:
             line = line.rstrip()
             parts = line.split("\t")
@@ -546,20 +545,21 @@ def merge_duplicate_stat(output_path, samplename):
                 newnumcons = tmp[4] + int(numcons)
                 newnumsing = tmp[5] + int(numsing)
                 regions[chrx][pos] = (newid, tmp[1], newend, name, newnumcons, newnumsing)
-    with open(histfile + "2", "w") as g:
+    histfile2 = Path(str(histfile) + "2")
+    with histfile2.open("w") as g:
         for chrx in sorted(regions, key=alphanum_key):
             for pos in regions[chrx]:
                 tmp = regions[chrx][pos]
                 g.write(
                     f"{tmp[0]}\t{str(chrx)}:{tmp[1]}-{tmp[2]}\t{tmp[3]}\tconsensus_reads: {tmp[4]}\tsingletons: {tmp[5]}\n"
                 )
-    os.rename(histfile + "2", histfile)
+    histfile2.rename(histfile)
 
 
 def index_bam_file(filename, num_threads=1):
     """Index the consensus reads bam file"""
     pysam.sort("-@", str(num_threads), filename, "-o", filename + ".sorted", catch_stdout=False)
-    os.rename(filename + ".sorted", filename)
+    Path(filename + ".sorted").rename(filename)
     pysam.index(filename, catch_stdout=False)
 
 
@@ -568,7 +568,6 @@ def split_into_chunks(umi_dict, clusters):
     keep all barcodes in same cluster in the same chunk.
     """
     n = 0
-    i = 0
     newdicts = []
     newdict = {}
     for c in clusters:
@@ -615,10 +614,12 @@ def cluster_umis_all_regions(
     consensus_frequency_cutoff,
     outputjson=False,
     region_from_tag=False,
-    starts=[],
+    starts=None,
 ):
     """Function for running UMI clustering and error correction using num_cpus threads,
     i.e. one region on each thread."""
+    if starts is None:
+        starts = {}
     argvec = []
     bamfilelist = []
     i = 0
@@ -626,10 +627,7 @@ def cluster_umis_all_regions(
 
     for contig in regions:
         for pos in regions[contig]:
-            if contig in bedregions:
-                annotations = bedregions[contig]
-            else:
-                annotations = []
+            annotations = bedregions.get(contig, [])
 
             if region_from_tag:
                 i = pos
@@ -637,7 +635,7 @@ def cluster_umis_all_regions(
                 j = 0
             else:
                 posx = int(pos)
-            tmpfilename = f"{output_path}/tmp_{i}.bam"
+            tmpfilename = f"{output_path}/tmp_{i}.bam"  # noqa: S108
             numreads = sum(regions[contig][pos].values())
             if numreads > 100000:  # split in chunks
                 umi_dict = regions[contig][pos]
@@ -645,7 +643,7 @@ def cluster_umis_all_regions(
                 clusters = get_connected_components(umi_dict, adj_matrix)
                 newdicts = split_into_chunks(umi_dict, clusters)
                 for x in newdicts:
-                    tmpfilename = f"{output_path}/tmp_{i}.bam"
+                    tmpfilename = f"{output_path}/tmp_{i}.bam"  # noqa: S108
                     argvec.append(
                         (
                             x,
@@ -666,7 +664,7 @@ def cluster_umis_all_regions(
                             outputjson,
                         )
                     )
-                    bamfilelist.append(f"{output_path}/tmp_{i}.bam")
+                    bamfilelist.append(f"{output_path}/tmp_{i}.bam")  # noqa: S108
                     if not region_from_tag:
                         i += 1
                     else:
@@ -693,7 +691,7 @@ def cluster_umis_all_regions(
                         outputjson,
                     )
                 )
-                bamfilelist.append(f"{output_path}/tmp_{i}.bam")
+                bamfilelist.append(f"{output_path}/tmp_{i}.bam")  # noqa: S108
                 if not region_from_tag:
                     i += 1
 
@@ -746,20 +744,20 @@ def run_umi_errorcorrect(args):
     logging.info(f"Group by position method: {group_method}")
     logging.info(f"Consensus method: {consensus_method}")
     output_path = Path(args.output_path)
-    if not args.bam_file:  # see if it is possible to guess bam file from previous step.
-        if args.sample_name:
-            testname = output_path / f"{args.sample_name}.sorted.bam"
-            if testname.is_file():
-                args.bam_file = str(testname)
+    if not args.bam_file and args.sample_name:
+        # see if it is possible to guess bam file from previous step.
+        testname = output_path / f"{args.sample_name}.sorted.bam"
+        if testname.is_file():
+            args.bam_file = str(testname)
     if not args.bam_file:
-        bamfile = glob.glob(str(output_path / "*sorted.bam"))
+        bamfile = list(output_path.glob("*sorted.bam"))
         if len(bamfile) > 1:
             print(
                 "Too many sorted.bam files in output folder, please specify which sample to run with -s (sample name) or -b (path to bam file)."
             )
             sys.exit(1)
         else:
-            args.bam_file = bamfile[0]
+            args.bam_file = str(bamfile[0])
     if not args.sample_name:
         args.sample_name = get_sample_name(args.bam_file)
     if group_method == "fromTag":
@@ -776,10 +774,7 @@ def run_umi_errorcorrect(args):
     logging.info(f"Number of regions, {nregions}")
 
     edit_distance_threshold = args.edit_distance_threshold
-    if args.num_threads:
-        num_cpus = int(args.num_threads)
-    else:
-        num_cpus = int(cpu_count())
+    num_cpus = int(args.num_threads) if args.num_threads else int(cpu_count())
     logging.info("Starting Consensus sequence generation")
     logging.info(f"Starting {num_cpus} threads")
     fasta = args.reference_file
@@ -834,7 +829,7 @@ def run_umi_errorcorrect(args):
     merge_cons(args.output_path, consfilelist, args.sample_name)
     cons_file = output_path / f"{args.sample_name}_cons.tsv"
     if args.remove_large_files:
-        os.remove(output_path / args.bam_file)
+        (output_path / args.bam_file).unlink()
 
     statfilelist = [x.rstrip(".bam") + ".hist" for x in bamfilelist]
     merge_stat(args.output_path, statfilelist, args.sample_name)

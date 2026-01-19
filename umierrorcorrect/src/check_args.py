@@ -11,10 +11,11 @@ from typing import Literal
 
 def check_output_directory(outdir: str) -> str:
     """Check if outdir exists, otherwise create it."""
-    if os.path.isdir(outdir):
+    outdir_path = Path(outdir)
+    if outdir_path.is_dir():
         return outdir
     else:
-        os.mkdir(outdir)
+        outdir_path.mkdir()
         return outdir
 
 
@@ -50,7 +51,7 @@ def is_tool(name: str) -> bool:
         True if the tool is available, False otherwise.
     """
     try:
-        with open(os.devnull, "w") as devnull:
+        with Path(os.devnull).open("w") as devnull:
             subprocess.run(
                 [name, "--version"],
                 stdout=devnull,
@@ -102,11 +103,10 @@ def check_args_fastq(args: Namespace) -> Namespace:
     except ValueError as e:
         raise ValueError(f"Spacer length must be an integer: {e}") from e
     # check if fastq files exist
-    if not os.path.isfile(args.read1):
+    if not Path(args.read1).is_file():
         raise ValueError(f"The file specified as r1 ({args.read1}) does not exist.")
-    if args.mode == "paired":
-        if not os.path.isfile(args.read2):
-            raise ValueError(f"The file specified as r2 ({args.read2}) does not exist.")
+    if args.mode == "paired" and not Path(args.read2).is_file():
+        raise ValueError(f"The file specified as r2 ({args.read2}) does not exist.")
     # check if umis_in_header file exists
     output_path = Path(args.output_path)
     if args.mode == "paired":

@@ -1,7 +1,6 @@
 """Unit tests for umierrorcorrect.src.umi_cluster module."""
 
 import pytest
-
 from umierrorcorrect.src.umi_cluster import (
     cluster_barcodes,
     create_substring_matrix,
@@ -210,9 +209,7 @@ class TestGetConnectedComponents:
             "AAAAAAAAAAAC": 5,
             "AAAAAAAAAAAG": 3,
         }
-        adj_matrix = {
-            "AAAAAAAAAAAA": ["AAAAAAAAAAAC", "AAAAAAAAAAAG"]
-        }
+        adj_matrix = {"AAAAAAAAAAAA": ["AAAAAAAAAAAC", "AAAAAAAAAAAG"]}
         clusters = get_connected_components(barcodes, adj_matrix)
 
         assert len(clusters) == 1

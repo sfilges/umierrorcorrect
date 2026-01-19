@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import glob
 import logging
 import random
 import sys
@@ -76,10 +75,7 @@ class region_cons_stat:
         line = "\t".join([str(self.regionid), self.pos, self.name, "0", "1.0", str(r0), str(u0)])
         lines.append(line)
         for fsize in self.fsizes:
-            if r0 == 0:
-                fraction = 0
-            else:
-                fraction = self.total_reads[fsize] / r0
+            fraction = 0 if r0 == 0 else self.total_reads[fsize] / r0
             line = "\t".join(
                 [
                     str(self.regionid),
@@ -96,7 +92,7 @@ class region_cons_stat:
 
 
 def get_stat(consensus_filename, stat_filename):
-    with open(stat_filename) as f:
+    with Path(stat_filename).open() as f:
         regions = []
         for line in f:
             line = line.rstrip()
@@ -172,7 +168,7 @@ def plot_downsampling(results_tot, fsize, plot_filename):
 
 
 def save_downsampled_table(all_results, tot_results, out_filename):
-    with open(out_filename, "w") as g:
+    with Path(out_filename).open("w") as g:
         for r in tot_results[0]:
             text = tot_results[0][r].write_stats()
             lines = text.split("\n")
@@ -186,14 +182,13 @@ def save_downsampled_table(all_results, tot_results, out_filename):
                     g.write("downsampled" + str(r) + "\t" + line + "\n")
 
 
-def downsample_reads_per_region(hist, fraction, fsizes, onlyNamed=True):
+def downsample_reads_per_region(hist, _fraction, fsizes, onlyNamed=True):
     all_results = []
     downsample_rates = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     for h in hist:
         run_analysis = True
-        if onlyNamed:
-            if h.name == "":
-                run_analysis = False
+        if onlyNamed and h.name == "":
+            run_analysis = False
         if run_analysis:
             num_families = len(h.hist)
             tmpnames = np.array(range(0, num_families))
@@ -203,7 +198,7 @@ def downsample_reads_per_region(hist, fraction, fsizes, onlyNamed=True):
             reads = list(reads) + singnames
             results = {}
             for r in downsample_rates:
-                ds_reads = random.sample(list(reads), round(r * len(reads)))  # downsample
+                ds_reads = random.sample(list(reads), round(r * len(reads)))  # noqa: S311 - downsample
                 new_hist = Counter(ds_reads).values()  # collapse to one entry per UMI family
                 new_hist = sorted(new_hist, reverse=True)  # sort
                 new_singletons = list(new_hist).count(1)  # count singletons in new
@@ -267,34 +262,17 @@ def get_percent_mapped_reads(num_fastq_reads, bamfile):
     with pysam.AlignmentFile(bamfile, "rb") as f:
         stats = f.get_index_statistics()
         num_mapped = 0
-        for s in mapped:
+        for s in stats:
             num_mapped += s.mapped
     ratio = (num_mapped / num_fastq_reads) * 1.0
     return (num_mapped, ratio)
-
-
-# def plot_histogram(hist,plot_filename):
-#    umisizesall=[]
-#    for region in hist:
-#        umisizesall.extend(region.hist)
-#        umisizesall.extend([1]*region.singletons)
-#    num_bins=100
-#    umisizesall.sort(reverse=True)
-#    print(umisizesall[0:100])
-#    n,bins,patches=plt.hist(umisizesall,num_bins,facecolor='dodgerblue')
-#    plt.xlabel('Barcode family depth')
-#    plt.ylabel('Frequency')
-#    plt.title('Histogram of barcode family depth')
-#    plt.box(False)
-#    #plt.xlim(0,500)
-#    plt.savefig(plot_filename)
 
 
 def run_get_consensus_statistics(output_path, consensus_filename, stat_filename, output_raw, samplename):
     logging.info("Getting consensus statistics")
     out_path = Path(output_path)
     if not consensus_filename:
-        consensus_filename = glob.glob(str(out_path / "*_consensus_reads.bam"))[0]
+        consensus_filename = str(list(out_path.glob("*_consensus_reads.bam"))[0])
     if not samplename:
         samplename = Path(consensus_filename).name.replace("_consensus_reads.bam", "")
     if not stat_filename:
@@ -303,18 +281,18 @@ def run_get_consensus_statistics(output_path, consensus_filename, stat_filename,
     fsizes = [1, 2, 3, 4, 5, 7, 10, 20, 30]
     histall = get_overall_statistics(hist, fsizes)
     if not consensus_filename:
-        consensus_filename = glob.glob(str(out_path / "*_consensus_reads.bam"))
+        consensus_filename = str(list(out_path.glob("*_consensus_reads.bam"))[0])
         # print(consensus_filename)
     if not samplename:
         samplename = Path(stat_filename).stem
     outfilename = out_path / f"{samplename}_summary_statistics.txt"
     logging.info(f"Writing consensus statistics to {outfilename}")
-    with open(outfilename, "w") as g:
+    with outfilename.open("w") as g:
         g.write(histall.write_stats() + "\n")
         for stat in hist:
             g.write(stat.write_stats() + "\n")
     outfilename = out_path / f"{samplename}_target_coverage.txt"
-    with open(outfilename, "w") as g:
+    with outfilename.open("w") as g:
         g.write(calculate_target_coverage(hist, fsizes))
     if output_raw:
         largehist = []
@@ -322,11 +300,11 @@ def run_get_consensus_statistics(output_path, consensus_filename, stat_filename,
         for h in hist:
             largehist = largehist + h.hist
             largehist = largehist + [1] * h.singletons
-        l = Counter(largehist)
-        # print(l)
-        with open(outfilename, "w") as g:
-            for size in sorted(l):
-                g.write(str(size) + "\t" + str(l[size]) + "\n")
+        hist_counts = Counter(largehist)
+        # print(hist_counts)
+        with outfilename.open("w") as g:
+            for size in sorted(hist_counts):
+                g.write(str(size) + "\t" + str(hist_counts[size]) + "\n")
 
     # print(hist)
     # plot_histogram(hist,output_path+'/histogram.png')

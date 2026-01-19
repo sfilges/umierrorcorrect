@@ -21,9 +21,7 @@ def read_fastq(infile: TextIO) -> Generator[tuple[str, str, str], None, None]:
         yield (name, seq, qual)
 
 
-def read_fastq_paired_end(
-    r1file: TextIO, r2file: TextIO
-) -> Generator[tuple[str, str, str, str, str, str], None, None]:
+def read_fastq_paired_end(r1file: TextIO, r2file: TextIO) -> Generator[tuple[str, str, str, str, str, str], None, None]:
     """Read paired-end FASTQ records from two files.
 
     Args:

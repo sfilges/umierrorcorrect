@@ -59,9 +59,13 @@ def run(
     spacer_length: Annotated[
         int, typer.Option("-sl", "--spacer-length", help="Length of spacer between UMI and read.")
     ] = 0,
-    sample_name: Annotated[Optional[str], typer.Option("-s", "--sample-name", help="Sample name for output files.")] = None,
+    sample_name: Annotated[
+        Optional[str], typer.Option("-s", "--sample-name", help="Sample name for output files.")
+    ] = None,
     threads: Annotated[int, typer.Option("-t", "--threads", help="Number of threads.")] = 1,
-    edit_distance: Annotated[int, typer.Option("-d", "--edit-distance", help="Edit distance threshold for UMI clustering.")] = 1,
+    edit_distance: Annotated[
+        int, typer.Option("-d", "--edit-distance", help="Edit distance threshold for UMI clustering.")
+    ] = 1,
     dual_index: Annotated[bool, typer.Option("--dual-index", help="Use dual indices (UMIs on R1 and R2).")] = False,
     reverse_index: Annotated[bool, typer.Option("--reverse-index", help="UMI is on R2 instead of R1.")] = False,
     adapter_trimming: Annotated[bool, typer.Option("--trim", help="Perform 3' adapter trimming.")] = False,

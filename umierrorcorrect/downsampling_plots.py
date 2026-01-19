@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import glob
 import logging
 import sys
 from pathlib import Path
@@ -46,7 +45,7 @@ def run_downsampling(output_path, consensus_filename, stat_filename, fsize, samp
     logging.info("Getting consensus statistics")
     out_path = Path(output_path)
     if not consensus_filename:
-        consensus_filename = glob.glob(str(out_path / "*_consensus_reads.bam"))[0]
+        consensus_filename = str(list(out_path.glob("*_consensus_reads.bam"))[0])
     if not samplename:
         samplename = Path(consensus_filename).name.replace("_consensus_reads.bam", "")
     if not stat_filename:

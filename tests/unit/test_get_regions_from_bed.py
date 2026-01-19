@@ -1,7 +1,5 @@
 """Unit tests for umierrorcorrect.src.get_regions_from_bed module."""
 
-import pytest
-
 from umierrorcorrect.src.get_regions_from_bed import (
     get_annotation,
     get_annotation2,

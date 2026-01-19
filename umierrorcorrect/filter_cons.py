@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import sys
+from pathlib import Path
 
 
 def parseArgs():
@@ -28,14 +29,13 @@ def parseArgs():
 def filter_cons(filename, raw_depth_cutoff=150, fsizes="0,1,2,3,4,5,7,10,20,30", writeraw=False):
     outfilename = filename.replace("_cons.tsv", "_filtered_cons.tsv")
     fs = fsizes.split(",")
-    with open(filename) as f, open(outfilename, "w") as g:
+    with Path(filename).open() as f, Path(outfilename).open("w") as g:
         header = f.readline()
         g.write(header)
         passdepth = False
         for line in f:
             parts = line.split("\t")
             if parts[3] not in "":
-                pos = parts[2]
                 fsize = parts[13]
                 if fsize == "0":
                     depth = int(parts[12])
@@ -45,7 +45,7 @@ def filter_cons(filename, raw_depth_cutoff=150, fsizes="0,1,2,3,4,5,7,10,20,30",
                         passdepth = True
                     else:
                         passdepth = False
-                elif passdepth == True and fsize in fs:
+                elif passdepth is True and fsize in fs:
                     g.write(line)
 
 

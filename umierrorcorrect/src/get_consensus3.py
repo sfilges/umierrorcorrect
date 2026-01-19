@@ -114,7 +114,7 @@ class consensus_read:
         self.json = dictionary
 
     def write_to_bam(self, f):
-        if self.is_split_read == False:
+        if self.is_split_read is False:
             a = pysam.AlignedSegment()
             a.query_name = self.name
             a.query_sequence = self.seq
@@ -130,7 +130,7 @@ class consensus_read:
             j = 0
             for i, s in enumerate(self.splits):
                 a = pysam.AlignedSegment()
-                if type(s) is tuple:
+                if isinstance(s, tuple):
                     start = s[0] - self.start_pos
                     end = s[1] - self.start_pos
                     a.reference_start = s[0]

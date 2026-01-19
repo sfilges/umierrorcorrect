@@ -34,9 +34,7 @@ def hamming_distance(a: str, b: str) -> int:
         raise error
 
 
-def create_substring_matrix(
-    barcodedict: dict[str, int], edit_distance_threshold: int
-) -> list[dict[str, list[str]]]:
+def create_substring_matrix(barcodedict: dict[str, int], edit_distance_threshold: int) -> list[dict[str, list[str]]]:
     """Divide each barcode in two or three substrings of (approximately) equal length."""
     edit_distance_threshold = int(edit_distance_threshold)
     umi_length = len(list(barcodedict.keys())[0])
@@ -110,9 +108,7 @@ def get_adj_matrix_from_substring(
     # return(comb)
 
 
-def cluster_barcodes(
-    barcodedict: dict[str, int], edit_distance_threshold: int
-) -> dict[str, list[str]]:
+def cluster_barcodes(barcodedict: dict[str, int], edit_distance_threshold: int) -> dict[str, list[str]]:
     """Cluster barcodes by edit distance."""
     edit_distance_threshold = int(edit_distance_threshold)
     adj_matrix: dict[str, list[str]] = {}
@@ -139,9 +135,7 @@ def cluster_barcodes(
     return adj_matrix
 
 
-def get_connected_components(
-    barcodedict: dict[str, int], adj_matrix: dict[str, list[str]]
-) -> list[list[str]]:
+def get_connected_components(barcodedict: dict[str, int], adj_matrix: dict[str, list[str]]) -> list[list[str]]:
     """Get connected components from the adjacency matrix."""
     clusters: list[list[str]] = []
     added: list[str] = []
@@ -166,9 +160,7 @@ def get_connected_components(
     return clusters
 
 
-def merge_clusters(
-    barcodedict: dict[str, int], clusters: list[list[str]]
-) -> dict[str, umi_cluster]:
+def merge_clusters(barcodedict: dict[str, int], clusters: list[list[str]]) -> dict[str, umi_cluster]:
     """Merge UMI clusters and return dictionary mapping barcodes to cluster info."""
     umis: dict[str, umi_cluster] = {}
     # add all umis separately

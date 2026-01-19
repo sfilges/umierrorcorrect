@@ -1,7 +1,6 @@
 """Unit tests for umierrorcorrect.src.get_consensus3 module."""
 
 import pytest
-
 from umierrorcorrect.src.get_consensus3 import (
     _phred_to_error,
     _phred_to_prob,

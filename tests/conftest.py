@@ -52,8 +52,8 @@ def sample_barcode_counts_large():
 
     # Generate 50 random 12-mer barcodes
     for _ in range(50):
-        barcode = "".join(random.choice(bases) for _ in range(12))
-        barcodes[barcode] = random.randint(1, 100)
+        barcode = "".join(random.choice(bases) for _ in range(12))  # noqa: S311
+        barcodes[barcode] = random.randint(1, 100)  # noqa: S311
 
     # Add some known clusters (1 edit distance apart)
     barcodes["AAAAAAAAAAAA"] = 50

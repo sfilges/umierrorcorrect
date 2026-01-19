@@ -96,9 +96,9 @@ def get_max_number_of_barcodes(regions, pos):
 def remove_singleton_regions(regions, cutoff):
     newregions = {}
     for chrx in regions:
-        newregions[chrx] = dict(
-            (x, y) for (x, y) in regions[chrx].items() if get_max_number_of_barcodes(regions[chrx], x) > cutoff
-        )
+        newregions[chrx] = {
+            x: y for x, y in regions[chrx].items() if get_max_number_of_barcodes(regions[chrx], x) > cutoff
+        }
     return newregions
 
 
@@ -140,7 +140,7 @@ def read_bam_from_bed(infile, bedfile, position_threshold):
 
     with pysam.AlignmentFile(infile, "rb") as f:
         chrs = get_chromosome_list_from_bam(f)
-        for contig, start, end, name in newregions:
+        for contig, start, end, _name in newregions:
             if contig in chrs:
                 if contig not in chrregions:
                     chrregions[contig] = {}

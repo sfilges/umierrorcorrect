@@ -1,11 +1,5 @@
 """Unit tests for umierrorcorrect.src.check_args module."""
 
-import os
-import tempfile
-from pathlib import Path
-
-import pytest
-
 from umierrorcorrect.src.check_args import (
     check_output_directory,
     get_sample_name,

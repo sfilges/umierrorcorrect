@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+from pathlib import Path
 
 import pysam
 
@@ -10,7 +11,7 @@ RegionDict = dict[str, list[tuple[int, int, str]]]
 def read_bed(bedfile: str) -> RegionDict:
     """Read a BED file and return regions organized by contig."""
     regions: RegionDict = {}
-    with open(bedfile) as f:
+    with Path(bedfile).open() as f:
         for line in f:
             line = line.strip()
             parts = line.split()

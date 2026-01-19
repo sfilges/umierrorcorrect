@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import glob
 import logging
 import sys
 from pathlib import Path
@@ -79,12 +78,11 @@ def parse_cons_file(filename, fsize=3):
     c1 = []
     data = []
     encoding = "iso-8859-1"
-    with open(filename, encoding=encoding) as f:
+    with Path(filename).open(encoding=encoding) as f:
         f.readline()
         for line in f:
             line = line.rstrip("\n")
             parts = line.split("\t")
-            pos = parts[2]
             name = parts[3]
             # print(name)
             if name not in "":
@@ -105,7 +103,7 @@ def parse_cons_file(filename, fsize=3):
 
 
 def write_vcf(vcffile, rout, Qsig, reference):
-    with open(vcffile, "w") as g:
+    with Path(vcffile).open("w") as g:
         g.write(
             "##fileformat=VCFv4.2\n##reference="
             + reference
@@ -123,14 +121,11 @@ def write_vcf(vcffile, rout, Qsig, reference):
                 q = "."
             parts = r.split("\t")
             vcffilter = []
-            if not q == "." and float(q) < 10:
+            if q != "." and float(q) < 10:
                 vcffilter.append("q10")
             if int(parts[-3]) < 5:
                 vcffilter.append("a5")
-            if len(vcffilter) == 0:
-                vcffilter = "PASS"
-            else:
-                vcffilter = ",".join(vcffilter)
+            vcffilter = "PASS" if len(vcffilter) == 0 else ",".join(vcffilter)
             newline = "\t".join(
                 [
                     parts[1],
@@ -167,9 +162,8 @@ def get_sample_name(cons_name):
 
 
 def run_call_variants(args):
-    spikepositions = [178952085, 55599321, 7577558, 7577547, 7577538, 7577120]
     if not args.cons_file:
-        args.cons_file = glob.glob(args.output_path + "/*cons.tsv")[0]
+        args.cons_file = str(list(Path(args.output_path).glob("*cons.tsv"))[0])
     if not args.sample_name:
         args.sample_name = get_sample_name(args.cons_file)
     args.fsize = int(args.fsize)
@@ -184,7 +178,7 @@ def run_call_variants(args):
     # result=get_beta_parameters(f1[np.isin(pos,spikepositions)!=True])
     params = []
     if args.params_file:
-        with open(args.params_file) as f:
+        with Path(args.params_file).open() as f:
             for line in f:
                 line = line.rstrip()
                 params.append(float(line))
@@ -207,39 +201,6 @@ def run_call_variants(args):
         Qsig = Q[a1 >= float(args.count_cutoff)]
     outfilename = Path(args.output_path) / f"{args.sample_name}.vcf"
     write_vcf(str(outfilename), rout, Qsig, args.reference_file)
-
-
-def main(filename, fsize, cutoff):
-    spikepositions = [178952085, 55599321, 7577558, 7577547, 7577538, 7577120]
-    f1, n1, data = parse_cons_file(filename, fsize)
-    # print(f1)
-    f1 = np.array(f1)
-    n1 = np.array(n1)
-    a1 = f1 * n1
-    result = get_beta_parameters(f1)
-    a = prob_bb(n1, a1, result[0], result[1])
-    a[a == inf] = 1e-10
-    a[np.isnan(a)] = 1e-10
-    Q = -10 * np.log10(a)
-    data = np.array(data)
-    rout = data[float(args.qvalue_threshold) <= Q]
-    Qsig = Q[float(args.qvalue_threshold) <= Q]
-    outfilename = filename.rstrip("_cons.tsv") + ".vcf"
-    write_vcf(outfilename, rout, Qsig, "reference")
-    for r, q in zip(rout, Qsig):
-        print(r + "\t" + str(q))
-
-    # with open('fraction.txt') as f:
-    #    data=[]
-    #    for line in f:
-    #        line=line.rstrip()
-    #        data.append(float(line))
-    # result=beta.fit(f1,floc=0)
-
-
-#
-# result=get_beta_parameters(f1)
-# print(result)
 
 
 def main_cli():
