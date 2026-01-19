@@ -19,6 +19,7 @@ from pathlib import Path
 
 from umierrorcorrect.src.check_args import check_args_fastq
 from umierrorcorrect.src.handle_sequences import read_fastq, read_fastq_paired_end
+from umierrorcorrect.src.logging_config import log_subprocess_stderr
 
 
 def check_output_directory(outdir):
@@ -49,8 +50,9 @@ def run_unpigz(filename, tmpdir, num_threads, program):
     elif program == "gzip":
         command = ["gunzip", "-c", filename]
     with outfilename.open("w") as g:
-        p = subprocess.Popen(command, stdout=g)
-        p.communicate()
+        p = subprocess.Popen(command, stdout=g, stderr=subprocess.PIPE)
+        _, stderr = p.communicate()
+        log_subprocess_stderr(stderr, program)
         p.wait()
     return str(outfilename)
 
@@ -61,8 +63,9 @@ def run_gunzip(filename, tmpdir):
     outfilename = Path(tmpdir) / input_path.name.removesuffix(".gz")
     command = ["gunzip", "-c", filename]
     with outfilename.open("w") as g:
-        p = subprocess.Popen(command, stdout=g)
-        p.communicate()
+        p = subprocess.Popen(command, stdout=g, stderr=subprocess.PIPE)
+        _, stderr = p.communicate()
+        log_subprocess_stderr(stderr, "gunzip")
         p.wait()
     return str(outfilename)
 
@@ -73,8 +76,9 @@ def run_pigz(filename, num_threads, program):
         command = ["pigz", "-p", num_threads, filename]
     elif program == "gzip":
         command = ["gzip", filename]
-    p = subprocess.Popen(command, stdout=subprocess.PIPE)
-    p.communicate()
+    p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    _, stderr = p.communicate()
+    log_subprocess_stderr(stderr, program)
     p.wait()
 
 
@@ -180,8 +184,9 @@ def run_preprocessing(args):
                 r2file,
             ]
         logging.info(f"Performing adapter trimming using cutadapt with adapter sequence {adapter}")
-        p = subprocess.Popen(command, stdout=subprocess.PIPE)
-        p.communicate()
+        p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, stderr = p.communicate()
+        log_subprocess_stderr(stderr, "cutadapt")
         p.wait()
         if args.mode == "single":
             Path(r1file).unlink()

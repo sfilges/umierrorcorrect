@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pysam
 
+from umierrorcorrect.src.logging_config import log_subprocess_stderr
+
 
 def check_output_directory(outdir):
     """Check if outdir exists, otherwise create it"""
@@ -49,8 +51,9 @@ def check_bwa_index(reference_file):
                 create_index = False
                 sys.exit(1)
             if create_index:
-                a = subprocess.Popen(["bwa", "index", reference_file])
-                a.communicate()
+                a = subprocess.Popen(["bwa", "index", reference_file], stderr=subprocess.PIPE)
+                _, stderr = a.communicate()
+                log_subprocess_stderr(stderr, "bwa-index")
 
 
 def run_mapping(num_threads, reference_file, fastq_files, output_path, sample_name, remove_large_files):
@@ -68,8 +71,9 @@ def run_mapping(num_threads, reference_file, fastq_files, output_path, sample_na
         bwacommand = ["bwa", "mem", "-t", num_threads, reference_file, fastq_files[0], fastq_files[1]]
 
     with Path(sam_file).open("w") as g:
-        p1 = subprocess.Popen(bwacommand, stdout=g)
-    p1.communicate()
+        p1 = subprocess.Popen(bwacommand, stdout=g, stderr=subprocess.PIPE)
+        _, stderr = p1.communicate()
+        log_subprocess_stderr(stderr, "bwa-mem")
     p1.wait()
     pysam.view("-Sb", "-@", num_threads, sam_file, "-o", bam_file, catch_stdout=False)
 

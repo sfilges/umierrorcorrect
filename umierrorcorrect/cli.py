@@ -7,7 +7,7 @@ from typing import Annotated, Optional
 import typer
 from rich.console import Console
 
-from umierrorcorrect.src.logging_config import get_logger, setup_logging
+from umierrorcorrect.src.logging_config import add_file_handler, get_log_path, get_logger, setup_logging
 from umierrorcorrect.version import __version__
 
 # Create main app and subcommand apps
@@ -80,6 +80,12 @@ def run(
 
     from umierrorcorrect.run_umierrorcorrect import main as run_pipeline
 
+    # Set up file logging
+    output.mkdir(parents=True, exist_ok=True)
+    log_path = get_log_path(output)
+    add_file_handler(log_path)
+    logger.info(f"Logging to {log_path}")
+
     # Convert to legacy args format
     args = Namespace(
         read1=str(read1),
@@ -102,7 +108,7 @@ def run(
         include_singletons=True,
         position_threshold=20,
         indel_frequency_threshold=60.0,
-        consensus_frequency_threshold=None,
+        consensus_frequency_threshold=60.0,
         group_method="position",
         consensus_method="position",
         count_cutoff=3,
@@ -111,6 +117,7 @@ def run(
         vc_method="count",
         params_file=None,
         output_json=False,
+        tmpdir=None,
     )
 
     logger.info("Starting UMI Error Correct pipeline")
@@ -137,6 +144,12 @@ def preprocess(
     from argparse import Namespace
 
     from umierrorcorrect.preprocess import main as run_preprocess
+
+    # Set up file logging
+    output.mkdir(parents=True, exist_ok=True)
+    log_path = get_log_path(output)
+    add_file_handler(log_path)
+    logger.info(f"Logging to {log_path}")
 
     args = Namespace(
         read1=str(read1),
@@ -175,6 +188,12 @@ def consensus(
 
     from umierrorcorrect.umi_error_correct import main as run_consensus
 
+    # Set up file logging
+    output.mkdir(parents=True, exist_ok=True)
+    log_path = get_log_path(output)
+    add_file_handler(log_path)
+    logger.info(f"Logging to {log_path}")
+
     args = Namespace(
         bam_file=str(bam),
         output_path=str(output),
@@ -187,7 +206,7 @@ def consensus(
         group_method="position",
         position_threshold=20,
         indel_frequency_threshold=60.0,
-        consensus_frequency_threshold=None,
+        consensus_frequency_threshold=60.0,
         regions_from_bed=False,
         regions_from_tag=False,
         remove_large_files=False,
@@ -209,6 +228,12 @@ def stats(
 ) -> None:
     """Generate consensus statistics from processed BAM files."""
     from umierrorcorrect.get_consensus_statistics import run_get_consensus_statistics
+
+    # Set up file logging
+    output.mkdir(parents=True, exist_ok=True)
+    log_path = get_log_path(output)
+    add_file_handler(log_path)
+    logger.info(f"Logging to {log_path}")
 
     logger.info("Generating consensus statistics")
     run_get_consensus_statistics(
@@ -235,6 +260,12 @@ def variants(
     from argparse import Namespace
 
     from umierrorcorrect.call_variants import run_call_variants
+
+    # Set up file logging
+    output.mkdir(parents=True, exist_ok=True)
+    log_path = get_log_path(output)
+    add_file_handler(log_path)
+    logger.info(f"Logging to {log_path}")
 
     args = Namespace(
         output_path=str(output),
@@ -268,6 +299,11 @@ def mapping(
     from umierrorcorrect.run_mapping import check_output_directory, get_sample_name, run_mapping
 
     output_path = check_output_directory(str(output))
+
+    # Set up file logging
+    log_path = get_log_path(output_path)
+    add_file_handler(log_path)
+    logger.info(f"Logging to {log_path}")
 
     if read2 is None:
         fastq_files = [str(read1)]
@@ -325,6 +361,12 @@ def downsampling(
 ) -> None:
     """Generate downsampling analysis plots."""
     from umierrorcorrect.downsampling_plots import run_downsampling
+
+    # Set up file logging
+    output.mkdir(parents=True, exist_ok=True)
+    log_path = get_log_path(output)
+    add_file_handler(log_path)
+    logger.info(f"Logging to {log_path}")
 
     logger.info("Generating downsampling plots")
     run_downsampling(
@@ -457,6 +499,12 @@ def batch(
     if prefilter and prefilter.lower() not in ("fastp",):
         console.print(f"[red]Error:[/red] Unknown prefilter tool: {prefilter}. Supported: fastp")
         raise typer.Exit(1)
+
+    # Set up file logging
+    output_dir.mkdir(parents=True, exist_ok=True)
+    log_path = get_log_path(output_dir)
+    add_file_handler(log_path)
+    logger.info(f"Logging to {log_path}")
 
     console.print("[bold green]UMI Error Correct - Batch Processing[/bold green]")
     console.print(f"  Samples found: {len(samples)}")

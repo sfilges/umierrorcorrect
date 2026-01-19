@@ -16,7 +16,13 @@ from typing import Optional
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
-from umierrorcorrect.src.logging_config import get_logger
+from umierrorcorrect.src.logging_config import (
+    add_file_handler,
+    get_log_path,
+    get_logger,
+    log_subprocess_stderr,
+    setup_logging,
+)
 
 logger = get_logger("batch")
 console = Console()
@@ -253,7 +259,7 @@ def run_fastp(
     logger.info(f"Running fastp on {sample.name}")
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        logger.debug(f"fastp stdout: {result.stdout}")
+        log_subprocess_stderr(result.stderr, "fastp")
 
         return FilteredSample(
             sample=sample,
@@ -289,7 +295,8 @@ def run_fastqc(files: list[Path], output_dir: Path, threads: int = 4) -> bool:
 
     logger.info(f"Running FastQC on {len(files)} files")
     try:
-        subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        log_subprocess_stderr(result.stderr, "fastqc")
         return True
     except subprocess.CalledProcessError as e:
         logger.error(f"FastQC failed: {e.stderr}")
@@ -316,7 +323,8 @@ def run_multiqc(input_dir: Path, output_dir: Path) -> bool:
 
     logger.info("Running MultiQC")
     try:
-        subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        log_subprocess_stderr(result.stderr, "multiqc")
         return True
     except subprocess.CalledProcessError as e:
         logger.error(f"MultiQC failed: {e.stderr}")
@@ -381,7 +389,7 @@ def process_sample(
         include_singletons=True,
         position_threshold=20,
         indel_frequency_threshold=60.0,
-        consensus_frequency_threshold=None,
+        consensus_frequency_threshold=60.0,
         group_method="position",
         consensus_method="position",
         count_cutoff=3,
@@ -390,10 +398,10 @@ def process_sample(
         vc_method="count",
         params_file=None,
         output_json=False,
+        tmpdir=None,
     )
 
     try:
-        logger.info(f"Processing sample: {sample.name}")
         run_pipeline(args)
 
         # Check for expected output files
@@ -434,6 +442,15 @@ def _process_sample_wrapper(args: tuple) -> ProcessingResult:
         dual_index,
         reverse_index,
     ) = args
+
+    # Configure logging in subprocess:
+    # - Console at INFO to avoid DEBUG spam on terminal
+    # - File at DEBUG to capture external tool stderr
+    setup_logging(level="INFO")
+    sample_output_dir = output_dir / sample.name
+    sample_output_dir.mkdir(parents=True, exist_ok=True)
+    log_path = get_log_path(sample_output_dir)
+    add_file_handler(log_path)
 
     return process_sample(
         sample=sample,

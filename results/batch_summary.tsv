@@ -1,0 +1,3 @@
+sample_name	status	output_dir	consensus_bam	vcf_file	hist_file	error_message
+P001_end	SUCCESS	results/samples/P001_end	results/samples/P001_end/P001_end_consensus_reads.bam	results/samples/P001_end/P001_end.vcf	results/samples/P001_end/P001_end.hist	
+P001_start	SUCCESS	results/samples/P001_start	results/samples/P001_start/P001_start_consensus_reads.bam	results/samples/P001_start/P001_start.vcf	results/samples/P001_start/P001_start.hist	

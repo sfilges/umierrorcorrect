@@ -1,0 +1,16 @@
+1	chr1:155053224-155053275		consensus_reads: 3	singletons: 0
+6	chr2:32916227-32916420		consensus_reads: 910	singletons: 1154
+7	chr2:32916338-32916571		consensus_reads: 764	singletons: 320
+8	chr2:32916466-32916626		consensus_reads: 2777	singletons: 619
+10	chr3:179203725-179203813		consensus_reads: 1910	singletons: 0
+11	chr3:179210117-179210321		consensus_reads: 1394	singletons: 0
+12	chr3:179210238-179210325		consensus_reads: 2718	singletons: 0
+13	chr3:179218252-179218354		consensus_reads: 2307	singletons: 2
+14	chr3:179234246-179234330		consensus_reads: 2551	singletons: 3
+15	chr7:106101435-106101475		consensus_reads: 20	singletons: 138
+16	chr8:112318869-112318971		consensus_reads: 1	singletons: 0
+2	chr11:28749175-28749241		consensus_reads: 1	singletons: 0
+3	chr12:49037154-49037239		consensus_reads: 1	singletons: 0
+4	chr12:66057590-66057682		consensus_reads: 1	singletons: 5
+5	chr17:7675038-7675131		consensus_reads: 1	singletons: 0
+9	chr22:16572071-16572170		consensus_reads: 106	singletons: 1

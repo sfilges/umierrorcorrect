@@ -1,0 +1,5 @@
+Sample	Unique Reads	Duplicate Reads
+P001_end_R1_001	37937.0	87649.0
+P001_end_R2_001	8885.0	116701.0
+P001_start_R1_001	33475.0	52467.0
+P001_start_R2_001	6673.0	79269.0

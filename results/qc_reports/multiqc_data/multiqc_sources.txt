@@ -1,0 +1,5 @@
+Module	Section	Sample Name	Source
+FastQC	all_sections	P001_end_R1_001	/Users/ctosimsen/Documents/GitHub/umierrorcorrect/results/qc_reports/fastqc/P001_end_R1_001_fastqc.zip
+FastQC	all_sections	P001_end_R2_001	/Users/ctosimsen/Documents/GitHub/umierrorcorrect/results/qc_reports/fastqc/P001_end_R2_001_fastqc.zip
+FastQC	all_sections	P001_start_R1_001	/Users/ctosimsen/Documents/GitHub/umierrorcorrect/results/qc_reports/fastqc/P001_start_R1_001_fastqc.zip
+FastQC	all_sections	P001_start_R2_001	/Users/ctosimsen/Documents/GitHub/umierrorcorrect/results/qc_reports/fastqc/P001_start_R2_001_fastqc.zip

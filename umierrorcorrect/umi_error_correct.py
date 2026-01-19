@@ -657,7 +657,7 @@ def run_umi_errorcorrect(args):
         if group_method == "fromBed":
             bedregions = merge_regions(bedregions, 0)
     else:
-        bedregions = []
+        bedregions = {}
     # print(bedregions)
     if group_method == "fromTag":
         bamfilelist = cluster_umis_all_regions(
@@ -700,7 +700,7 @@ def run_umi_errorcorrect(args):
     index_bam_file(str(consensus_bam), num_cpus)
     consfilelist = [x.rstrip(".bam") + ".cons" for x in bamfilelist]
     merge_cons(args.output_path, consfilelist, args.sample_name)
-    cons_file = output_path / f"{args.sample_name}_cons.tsv"
+    cons_file = str(output_path / f"{args.sample_name}_cons.tsv")
     if args.remove_large_files:
         (output_path / args.bam_file).unlink()
 

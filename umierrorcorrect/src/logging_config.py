@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Logging configuration using loguru for umierrorcorrect."""
 
+import contextlib
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
 from loguru import logger
+
+# Track file handler ID so we can avoid duplicates
+_file_handler_id: int | None = None
 
 # Default log format
 LOG_FORMAT = (
@@ -103,3 +108,76 @@ def redirect_standard_logging() -> None:
     import logging
 
     logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+
+
+def get_log_path(output_dir: Path | str) -> Path:
+    """Generate timestamped log file path.
+
+    Args:
+        output_dir: Directory where log file will be created.
+
+    Returns:
+        Path to the log file with format: simsen-cli_YYYYMMDD_HHMMSS.log
+    """
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return Path(output_dir) / f"simsen-cli_{timestamp}.log"
+
+
+def add_file_handler(
+    log_path: Path | str,
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "DEBUG",
+) -> int:
+    """Add a file handler to the logger.
+
+    This function ensures only one file handler is active at a time to avoid
+    duplicate logs when multiple subcommands are run.
+
+    Args:
+        log_path: Path to the log file.
+        level: Minimum log level for file logging.
+
+    Returns:
+        Handler ID that can be used to remove the handler later.
+    """
+    global _file_handler_id
+
+    # Remove existing file handler if any
+    if _file_handler_id is not None:
+        with contextlib.suppress(ValueError):
+            logger.remove(_file_handler_id)
+
+    log_path = Path(log_path)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    _file_handler_id = logger.add(
+        str(log_path),
+        format=LOG_FORMAT,
+        level=level,
+        rotation="10 MB",
+        retention="7 days",
+        compression="gz",
+    )
+
+    return _file_handler_id
+
+
+def log_subprocess_stderr(stderr: str | bytes | None, tool_name: str) -> None:
+    """Log captured stderr from an external tool.
+
+    Args:
+        stderr: Stderr output from subprocess (string or bytes).
+        tool_name: Name of the external tool for log context.
+    """
+    if stderr is None:
+        return
+
+    # Convert bytes to string if needed
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", errors="replace")
+
+    stderr = stderr.strip()
+    if stderr:
+        # Log each line separately for readability
+        for line in stderr.splitlines():
+            if line.strip():
+                logger.debug(f"[{tool_name}] {line}")
