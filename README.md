@@ -1,5 +1,7 @@
 # UMIErrorCorrect
 
+[![PyPI version](https://badge.fury.io/py/umierrorcorrect.svg)](https://badge.fury.io/py/umierrorcorrect) [![Python Versions](https://img.shields.io/pypi/pyversions/umierrorcorrect.svg)](https://pypi.org/project/umierrorcorrect/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 Pipeline for analyzing barcoded amplicon sequencing data with Unique Molecular Identifiers (UMI).
 
 ## Reference
@@ -37,18 +39,69 @@ See the [Docker documentation](doc/docker.md) for more details.
 ### Verify installation
 
 ```bash
-run_umierrorcorrect --help
+umierrorcorrect --help
 ```
+
+## Tutorial
+
+This tutorial shows an example on how to use `umierrorcorrect`.
+
+### Step 1 - Download the example files
+
+1. [Download the example files](https://guse.sharefile.eu/d-s878525e0e6234cd69de7b4e4cfa4c113)
+2. Create a folder named `tutorial` and move the files there.
+
+### Step 2 - Reference genome
+
+The `umierrorcorrect` pipeline runs `bwa mem` for aligning the reads to the reference genome. In this tutorial the data contains reads from chr3 of the Human genome.
+
+If you don't have a version of the Human reference genome, you can download the sequence in fasta format for chromosome 3 (or for the full data set) from the [UCSC genome browser](http://hgdownload.cse.ucsc.edu/downloads.html#human).
+
+After downloading the reference fasta file, unzip the file and index it using `bwa`:
+
+```bash
+gunzip chr3.fa.gz
+bwa index chr3.fa
+```
+
+### Step 3 - Run UMI error correct
+
+The data in the file `test_1.fastq.gz` is single end data generated with the SimSenSeq protocol described in [Ståhlberg et al. (2017)](https://doi.org/10.1038/nprot.2017.006).
+
+According to the protocol, the UMI length (`-ul`) should be 12 and spacer length (`-sl`) is 16.
+
+Run the pipeline with the following command:
+
+```bash
+umierrorcorrect run -o tutorial_output -r1 test_1.fastq.gz \
+    -r chr3.fa -bed target_regions_hg38.bed -ul 12 -sl 16 -t 1
+```
+
+**Parameters matches:**
+
+- `-o`: Output directory (created if it doesn't exist).
+- `-r1`: Path to the fastq file with sequencing data.
+- `-r`: Path to the reference genome fasta file.
+- `-bed`: Path to the bedfile for annotation (target regions).
+- `-ul`: UMI sequence length (12).
+- `-sl`: Spacer length (16).
+- `-t`: Number of CPU threads.
+
+### Step 4 - Filter the cons file
+
+The pipeline should have created output files in the folder `tutorial_output`, including consensus files and variant calls.
 
 ## Dependencies
 
-UMIErrorCorrect requires Python 3.8+ and the following:
+UMIErrorCorrect requires Python 3.9+ and the following:
 
 **Python libraries** (installed automatically):
 
 - pysam (≥0.8.4)
 - scipy
 - matplotlib
+- loguru
+- typer
 
 **External programs** (must be in PATH):
 
@@ -68,14 +121,14 @@ bwa index -a bwtsw reference.fa
 ### Full pipeline
 
 ```bash
-run_umierrorcorrect -r1 read1.fastq.gz -r2 read2.fastq.gz \
+umierrorcorrect run -r1 read1.fastq.gz -r2 read2.fastq.gz \
     -ul <umi_length> -sl <spacer_length> \
     -r reference.fa -o output_directory
 ```
 
 ### Pipeline steps
 
-The `run_umierrorcorrect` command performs:
+The `umierrorcorrect run` command performs:
 
 1. **Preprocessing** - Extract UMI from reads and add to header
 2. **Mapping** - Align reads to reference genome with BWA
@@ -86,16 +139,16 @@ The `run_umierrorcorrect` command performs:
 
 ### Running individual steps
 
-Each step can be run independently:
+Each step can be run independently using subcommands:
 
 ```bash
-preprocess --help
-run_mapping --help
-umi_error_correct --help
-get_consensus_statistics --help
-call_variants --help
-filter_bam --help
-filter_cons --help
+umierrorcorrect preprocess --help
+umierrorcorrect mapping --help
+umierrorcorrect consensus --help
+umierrorcorrect stats --help
+umierrorcorrect variants --help
+umierrorcorrect filter-bam --help
+umierrorcorrect filter-cons --help
 ```
 
 ## Documentation
