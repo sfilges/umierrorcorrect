@@ -12,7 +12,6 @@ Preprocess the fastq files by removing the unique molecular index and add it to 
 
 """
 
-import argparse
 import logging
 import subprocess
 import sys
@@ -20,101 +19,6 @@ from pathlib import Path
 
 from umierrorcorrect.src.check_args import check_args_fastq
 from umierrorcorrect.src.handle_sequences import read_fastq, read_fastq_paired_end
-
-
-def parseArgs():
-    parser = argparse.ArgumentParser(
-        description="UmiErrorCorrect v.{} Pipeline for analyzing  barcoded amplicon sequencing data with \
-                                                  Unique molecular identifiers (UMI)"
-    )
-    parser.add_argument(
-        "-o", "--output_path", dest="output_path", help="Path to the output directory, required", required=True
-    )
-    parser.add_argument("-r1", "--read1", dest="read1", help="Path to first FASTQ file, R1, required", required=True)
-    parser.add_argument("-r2", "--read2", dest="read2", help="Path to second FASTQ file, R2 if applicable")
-    parser.add_argument(
-        "-ul",
-        "--umi_length",
-        dest="umi_length",
-        help="Length of UMI sequence (number of nucleotides).  \
-                              The UMI is assumed to be located at the start of \
-                              the read. Required",
-        required=True,
-    )
-    parser.add_argument(
-        "-sl",
-        "--spacer_length",
-        dest="spacer_length",
-        help="Length of spacer (The number of nucleotides between the UMI and the beginning of the read). \
-                              The UMI + spacer will be trimmed off, and the spacer will be discarded. Default=%(default)s",
-        default="0",
-    )
-    # parser.add_argument('-mode', '--mode', dest='mode',
-    #                    help="Name of library prep, Either 'single' or 'paired', for single end or paired end data \
-    #                          respectively, [default = %(default)s]", default="paired")
-    parser.add_argument(
-        "-dual",
-        "--dual_index",
-        dest="dual_index",
-        help="Include this flag if dual indices are used (UMIs both on R1 and R2)",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-reverse",
-        "--reverse_index",
-        dest="reverse_index",
-        help="Include this flag if a single index (UMI) is used, but the UMI is located on R2 \
-                              (reverse read). Default is UMI on R1.",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-s",
-        "--sample_name",
-        dest="sample_name",
-        help="Sample name which is used as base name \
-                              for the output files. If excluded the sample name is automatically extracted from the \
-                              name of the fastq file(s).",
-    )
-    parser.add_argument(
-        "-tmpdir",
-        "--tmp_dir",
-        dest="tmpdir",
-        help="temp directory where the temporary files are written and then removed. Should be the \
-                              scratch directory on the node. Default is a temp directory in the output folder.",
-    )
-    parser.add_argument(
-        "-f",
-        "--force",
-        dest="force",
-        action="store_true",
-        help="Include this flag to force output files to be overwritten",
-    )
-    parser.add_argument(
-        "-t",
-        "--num_threads",
-        dest="num_threads",
-        help="Number of threads to run the program on. Default=%(default)s",
-        default="1",
-    )
-    parser.add_argument(
-        "-trim",
-        "--adapter_trimming",
-        dest="adapter_trimming",
-        action="store_true",
-        help="Include this flag to perform automatic 3' adapter trimming (readthrough adapters).",
-    )
-    parser.add_argument(
-        "-a",
-        "--adapter_sequence",
-        dest="adapter_sequence",
-        help="Adapter to trim off 3' end. Select one of 'illumina','nextera' or 'small-rna' or enter a custom sequence (see documentation). Default=%(default)s (AGATCGGAAGAGC)",
-        default="illumina",
-    )
-    args = parser.parse_args(sys.argv[1:])
-    logging.basicConfig(format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=logging.DEBUG)
-    logging.info("Starting UMI Error Correct")
-
-    return args
 
 
 def check_output_directory(outdir):
@@ -332,13 +236,3 @@ def main(args):
         sys.exit(1)
     fastqfiles, nseqs = run_preprocessing(args)
     print(nseqs)
-
-
-def main_cli():
-    """CLI entry point."""
-    args = parseArgs()
-    main(args)
-
-
-if __name__ == "__main__":
-    main_cli()

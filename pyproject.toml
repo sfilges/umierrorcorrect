@@ -33,20 +33,7 @@ dependencies = [
 dev = ["ruff", "pytest", "pytest-cov", "mypy", "pre-commit"]
 
 [project.scripts]
-# New unified Typer CLI
 umierrorcorrect = "umierrorcorrect.cli:main_cli"
-
-# Legacy entry points (for backwards compatibility)
-run_umierrorcorrect = "umierrorcorrect.run_umierrorcorrect:main_cli"
-preprocess = "umierrorcorrect.preprocess:main_cli"
-run_mapping = "umierrorcorrect.run_mapping:main_cli"
-umi_error_correct = "umierrorcorrect.umi_error_correct:main_cli"
-get_consensus_statistics = "umierrorcorrect.get_consensus_statistics:main_cli"
-call_variants = "umierrorcorrect.call_variants:main_cli"
-filter_bam = "umierrorcorrect.filter_bam:main_cli"
-filter_cons = "umierrorcorrect.filter_cons:main_cli"
-downsampling_plots = "umierrorcorrect.downsampling_plots:main_cli"
-fit_background_model = "umierrorcorrect.fit_background_model:main_cli"
 
 [project.urls]
 Homepage = "https://github.com/sfilges/umierrorcorrect"

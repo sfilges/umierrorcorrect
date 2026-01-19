@@ -253,6 +253,118 @@ def variants(
     logger.info("Variant calling complete!")
 
 
+@app.command()
+def mapping(
+    read1: Annotated[Path, typer.Option("-r1", "--read1", help="Path to first FASTQ file (R1).")],
+    reference: Annotated[Path, typer.Option("-r", "--reference", help="Path to reference genome FASTA.")],
+    output: Annotated[Path, typer.Option("-o", "--output", help="Path to output directory.")],
+    read2: Annotated[Optional[Path], typer.Option("-r2", "--read2", help="Path to second FASTQ file (R2).")] = None,
+    sample_name: Annotated[Optional[str], typer.Option("-s", "--sample-name", help="Sample name.")] = None,
+    threads: Annotated[int, typer.Option("-t", "--threads", help="Number of threads.")] = 1,
+    remove_files: Annotated[bool, typer.Option("--remove", help="Remove original FASTQ files after mapping.")] = False,
+) -> None:
+    """Run BWA mapping to reference genome."""
+
+    from umierrorcorrect.run_mapping import check_output_directory, get_sample_name, run_mapping
+
+    output_path = check_output_directory(str(output))
+
+    if read2 is None:
+        fastq_files = [str(read1)]
+        mode = "single"
+    else:
+        fastq_files = [str(read1), str(read2)]
+        mode = "paired"
+
+    if not sample_name:
+        sample_name = get_sample_name(str(read1), mode)
+
+    logger.info("Starting BWA mapping")
+    run_mapping(str(threads), str(reference), fastq_files, output_path, sample_name, remove_files)
+    logger.info("Mapping complete!")
+
+
+@app.command(name="filter-bam")
+def filter_bam(
+    infile: Annotated[Path, typer.Option("-i", "--infile", help="Path to input BAM file.")],
+    outfile: Annotated[Path, typer.Option("-o", "--outfile", help="Path to output BAM file.")],
+    cutoff: Annotated[int, typer.Option("-c", "--cutoff", help="Consensus depth cutoff.")] = 3,
+) -> None:
+    """Filter BAM file by removing reads below consensus depth threshold."""
+    from umierrorcorrect.filter_bam import filter_bam as run_filter_bam
+
+    logger.info("Filtering BAM file")
+    run_filter_bam(str(infile), str(outfile), cutoff)
+    logger.info("BAM filtering complete!")
+
+
+@app.command(name="filter-cons")
+def filter_cons(
+    infile: Annotated[Path, typer.Option("-i", "--infile", help="Path to input cons.tsv file.")],
+    depth: Annotated[int, typer.Option("-d", "--depth", help="Raw depth cutoff.")] = 150,
+    family_sizes: Annotated[
+        str, typer.Option("-f", "--family-sizes", help="Family sizes to include, comma-separated.")
+    ] = "0,1,2,3,4,5,7,10,20,30",
+    write_raw: Annotated[bool, typer.Option("--write-raw", help="Include raw reads in output.")] = False,
+) -> None:
+    """Filter consensus file by depth and family sizes."""
+    from umierrorcorrect.filter_cons import filter_cons as run_filter_cons
+
+    logger.info("Filtering consensus file")
+    run_filter_cons(str(infile), depth, family_sizes, write_raw)
+    logger.info("Consensus filtering complete!")
+
+
+@app.command()
+def downsampling(
+    output: Annotated[Path, typer.Option("-o", "--output", help="Path to output directory.")],
+    cons_bam: Annotated[Optional[Path], typer.Option("-c", "--cons-bam", help="Path to consensus BAM file.")] = None,
+    hist_file: Annotated[Optional[Path], typer.Option("--hist", help="Path to histogram file.")] = None,
+    sample_name: Annotated[Optional[str], typer.Option("-s", "--sample-name", help="Sample name.")] = None,
+    fsize: Annotated[int, typer.Option("-f", "--fsize", help="Family size cutoff for downsampling.")] = 3,
+) -> None:
+    """Generate downsampling analysis plots."""
+    from umierrorcorrect.downsampling_plots import run_downsampling
+
+    logger.info("Generating downsampling plots")
+    run_downsampling(
+        str(output),
+        str(cons_bam) if cons_bam else None,
+        str(hist_file) if hist_file else None,
+        fsize,
+        sample_name,
+    )
+    logger.info("Downsampling analysis complete!")
+
+
+@app.command(name="fit-model")
+def fit_model(
+    cons_file: Annotated[Optional[Path], typer.Option("--cons", help="Path to cons.tsv file.")] = None,
+    nonbg_file: Annotated[
+        Optional[Path], typer.Option("--nonbg", help="Path to file with non-background positions.")
+    ] = None,
+    out_file: Annotated[Path, typer.Option("-o", "--out", help="Output file for model parameters.")] = Path(
+        "bgmodel.params"
+    ),
+    fsize: Annotated[int, typer.Option("-f", "--fsize", help="Family size cutoff.")] = 3,
+) -> None:
+    """Fit beta-binomial background model for variant calling."""
+    from argparse import Namespace
+
+    from umierrorcorrect.fit_background_model import run_fit_bgmodel
+
+    args = Namespace(
+        cons_file=str(cons_file) if cons_file else None,
+        nonbgposfile=str(nonbg_file) if nonbg_file else None,
+        out_file=str(out_file),
+        fsize=fsize,
+    )
+
+    logger.info("Fitting background model")
+    run_fit_bgmodel(args)
+    logger.info("Model fitting complete!")
+
+
 def main_cli() -> None:
     """Entry point for the CLI."""
     app()

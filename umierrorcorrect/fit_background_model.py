@@ -1,45 +1,9 @@
 #!/usr/bin/env python3
-import argparse
-import sys
 from pathlib import Path
 
 import numpy as np
 from scipy.optimize import fmin
 from scipy.stats import beta
-
-
-def parseArgs():
-    """Function for parsing arguments"""
-    parser = argparse.ArgumentParser(
-        description="Pipeline for analyzing barcoded amplicon \
-                                                  sequencing data with Unique molecular \
-                                                  identifiers (UMI)"
-    )
-    parser.add_argument(
-        "-cons", "--cons_file", dest="cons_file", help="Path to cons file, for fitting parameters of the bgmodel"
-    )
-    parser.add_argument(
-        "-nonbgposfile",
-        "--non-background-positions",
-        dest="nonbgposfile",
-        help="Path to file with non-background positions",
-    )
-    parser.add_argument(
-        "-out",
-        "--out_file",
-        dest="out_file",
-        help="name of output file, default = %(default)s]",
-        default="bgmodel.params",
-    )
-    parser.add_argument(
-        "-f",
-        "--fsize",
-        dest="fsize",
-        help="Family size cutoff (consensus cutoff) for variant calling. [default = %(default)s]",
-        default=3,
-    )
-    args = parser.parse_args(sys.argv[1:])
-    return args
 
 
 def parse_cons_file(filename, fsize=3):
@@ -133,13 +97,3 @@ def run_fit_bgmodel(args):
     #    Qsig=Q[a1 >= float(args.count_cutoff)]
     # outfilename=args.output_path+'/'+args.sample_name+'2.vcf'
     # write_vcf(outfilename,rout,Qsig,args.reference_file)
-
-
-def main_cli():
-    """CLI entry point."""
-    args = parseArgs()
-    run_fit_bgmodel(args)
-
-
-if __name__ == "__main__":
-    main_cli()

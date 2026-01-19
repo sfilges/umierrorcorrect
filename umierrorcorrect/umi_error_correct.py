@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import argparse
 import json
 import logging
 import re
@@ -24,132 +23,6 @@ from umierrorcorrect.src.get_consensus3 import (
 from umierrorcorrect.src.get_regions_from_bed import get_overlap, merge_regions, read_bed, sort_regions
 from umierrorcorrect.src.group import read_bam_from_bed, read_bam_from_tag, readBam
 from umierrorcorrect.src.umi_cluster import cluster_barcodes, get_connected_components, merge_clusters
-from umierrorcorrect.version import __version__
-
-
-def parseArgs():
-    """Function for parsing arguments"""
-    parser = argparse.ArgumentParser(
-        description=f"UmiErrorCorrect v. {__version__}. \
-                                                  Pipeline for analyzing barcoded amplicon \
-                                                  sequencing data with Unique molecular \
-                                                  identifiers (UMI)"
-    )
-    parser.add_argument(
-        "-o", "--output_path", dest="output_path", help="Path to the output directory, required", required=True
-    )
-    parser.add_argument("-b", "--bam", dest="bam_file", help="Path to BAM-file")
-    parser.add_argument(
-        "-bed",
-        "--bed-file",
-        dest="bed_file",
-        help="Path to a BED file defining the targeted regions, \
-                              i.e. chromosomal positions. The Bed file is used \
-                              for annotation.",
-    )
-    parser.add_argument(
-        "-regions_from_bed",
-        dest="regions_from_bed",
-        help="Include this flag if regions used for UMI clustering \
-                              and variant calling should be defined from the BED file. \
-                              Default is to detect the regions automatically from the \
-                              BAM file. ",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-regions_from_tag",
-        dest="regions_from_tag",
-        help="Include this flag if regions used for UMI clustering \
-                              and variant calling should be defined from the UG tag in the BAM file. \
-                              Default is to detect the regions automatically from the \
-                              BAM file. ",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-r",
-        "--reference",
-        dest="reference_file",
-        help="Path to the reference sequence in Fasta format, Used for annotation, required",
-    )
-    parser.add_argument(
-        "-c",
-        "--consensus_method",
-        dest="consensus_method",
-        help="Method for consensus generation. One of 'position', 'most_common' or 'MSA'. [default = %(default)s]",
-        default="position",
-    )
-    parser.add_argument(
-        "-s",
-        "--sample_name",
-        dest="sample_name",
-        help="Sample name that will be used as base name for the output files. \
-                        If excluded the sample name will be extracted from the BAM file.",
-    )
-    parser.add_argument(
-        "-remove",
-        "--remove_large_files",
-        dest="remove_large_files",
-        action="store_true",
-        help="Include this flag to remove the original Fastq and BAM files (reads without error correction).",
-    )
-    parser.add_argument(
-        "-d",
-        "--edit_distance",
-        dest="edit_distance_threshold",
-        help="Edit distance threshold for UMI clustering, [default = %(default)s]",
-        default=1,
-    )
-    parser.add_argument(
-        "-p",
-        "--position_threshold",
-        dest="position_threshold",
-        help="Position threshold for grouping by position [default = %(default)s]",
-        default=20,
-    )
-    parser.add_argument(
-        "-cons_freq",
-        "--consensus_frequency_threshold",
-        dest="consensus_frequency_threshold",
-        help="Minimum percent of the majority base at a position for consensus to be called. \
-                              [default = %(default)s]",
-        default=60.0,
-    )
-
-    parser.add_argument(
-        "-indel_freq",
-        "--indel_frequency_threshold",
-        dest="indel_frequency_threshold",
-        help="Percent threshold for indels to be included in the consensus read. \
-                        [default = %(default)s]",
-        default=60.0,
-    )
-    parser.add_argument(
-        "-singletons",
-        "--include_singletons",
-        dest="include_singletons",
-        action="store_true",
-        help="Include this flag if singleton reads should be included in the output consensus \
-                              read bam file. Note that the singletons will not be error corrected",
-    )
-    parser.add_argument(
-        "-t",
-        "--num_threads",
-        dest="num_threads",
-        help="Number of threads to run the program on. If excluded, the number of cpus are \
-                        automatically detected",
-    )
-    parser.add_argument(
-        "--output-json",
-        dest="output_json",
-        action="store_true",
-        help="Output a JSON format file with UMI family members",
-    )
-    args = parser.parse_args(sys.argv[1:])
-
-    logging.basicConfig(format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=logging.DEBUG)
-    logging.info("Starting UMI Error Correct")
-
-    return args
 
 
 def check_output_directory(outdir):
@@ -845,13 +718,3 @@ def run_umi_errorcorrect(args):
 
 def main(args):
     run_umi_errorcorrect(args)
-
-
-def main_cli():
-    """CLI entry point."""
-    args = parseArgs()
-    main(args)
-
-
-if __name__ == "__main__":
-    main_cli()

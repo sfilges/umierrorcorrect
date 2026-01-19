@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-import argparse
 import logging
-import sys
 from pathlib import Path
 
 from umierrorcorrect.get_consensus_statistics import (
@@ -11,34 +9,6 @@ from umierrorcorrect.get_consensus_statistics import (
     region_cons_stat,
     save_downsampled_table,
 )
-from umierrorcorrect.version import __version__
-
-
-def parseArgs():
-    """Function for parsing arguments"""
-    parser = argparse.ArgumentParser(
-        description=f"UmiErrorCorrect v. {__version__}. \
-                                                  Pipeline for analyzing barcoded amplicon \
-                                                  sequencing data with Unique molecular \
-                                                  identifiers (UMI)"
-    )
-    parser.add_argument(
-        "-o", "--output_path", dest="output_path", help="Path to the output directory, required", required=True
-    )
-    parser.add_argument("-c", "--cons_bam", dest="cons_bam_file", help="Path to the consensus BAM-file")
-    parser.add_argument("-hist", "--hist_file", dest="hist_file", help="Path to the .hist file")
-    parser.add_argument("-s", "--sample_name", dest="samplename", help="Sample name, if not provided it is extracted")
-    parser.add_argument(
-        "-f",
-        "--fsize",
-        dest="fsize",
-        help="Family size cutoff (consensus cutoff) for downsampling. [default = %(default)s]",
-        default="3",
-    )
-    args = parser.parse_args(sys.argv[1:])
-    logging.basicConfig(format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=logging.DEBUG)
-    logging.info("Starting UMI Error Correct")
-    return args
 
 
 def run_downsampling(output_path, consensus_filename, stat_filename, fsize, samplename=None):
@@ -64,13 +34,3 @@ def run_downsampling(output_path, consensus_filename, stat_filename, fsize, samp
     save_downsampled_table(all_results, tot, filename)
     filename = str(out_path / f"{samplename}_downsampled_plot.png")
     plot_downsampling(tot, fsize, filename)
-
-
-def main_cli():
-    """CLI entry point."""
-    args = parseArgs()
-    run_downsampling(args.output_path, args.cons_bam_file, args.hist_file, args.fsize, args.samplename)
-
-
-if __name__ == "__main__":
-    main_cli()

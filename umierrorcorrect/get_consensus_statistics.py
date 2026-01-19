@@ -1,40 +1,12 @@
 #!/usr/bin/env python3
-import argparse
 import logging
 import random
-import sys
 from collections import Counter
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pysam
-
-from umierrorcorrect.version import __version__
-
-
-def parseArgs():
-    """Function for parsing arguments"""
-    parser = argparse.ArgumentParser(
-        description=f"UmiErrorCorrect v. {__version__}. \
-                                                  Pipeline for analyzing barcoded amplicon \
-                                                  sequencing data with Unique molecular \
-                                                  identifiers (UMI)"
-    )
-    parser.add_argument(
-        "-o", "--output_path", dest="output_path", help="Path to the output directory, required", required=True
-    )
-    parser.add_argument("-c", "--cons_bam", dest="cons_bam_file", help="Path to the consensus BAM-file")
-    parser.add_argument("-hist", "--hist_file", dest="hist_file", help="Path to the .hist file")
-    parser.add_argument("-s", "--sample_name", dest="samplename", help="Sample name, if not provided it is extracted")
-    parser.add_argument(
-        "--output_raw", dest="output_raw", help="Write raw histogram counts to a txt file", action="store_true"
-    )
-    args = parser.parse_args(sys.argv[1:])
-    logging.basicConfig(format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=logging.DEBUG)
-    logging.info("Starting UMI Error Correct")
-
-    return args
 
 
 class region_cons_stat:
@@ -314,13 +286,3 @@ def run_get_consensus_statistics(output_path, consensus_filename, stat_filename,
 
 def main(output_path, consensus_filename, stat_filename, output_raw, samplename):
     run_get_consensus_statistics(output_path, consensus_filename, stat_filename, output_raw, samplename)
-
-
-def main_cli():
-    """CLI entry point."""
-    args = parseArgs()
-    main(args.output_path, args.cons_bam_file, args.hist_file, args.output_raw, args.samplename)
-
-
-if __name__ == "__main__":
-    main_cli()

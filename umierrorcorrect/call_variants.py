@@ -1,75 +1,10 @@
 #!/usr/bin/env python3
-import argparse
-import logging
-import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy import inf
 from scipy.stats import betabinom
-
-
-def parseArgs():
-    """Function for parsing arguments"""
-    parser = argparse.ArgumentParser(
-        description="Pipeline for analyzing barcoded amplicon \
-                                                  sequencing data with Unique molecular \
-                                                  identifiers (UMI)"
-    )
-    parser.add_argument(
-        "-o", "--output_path", dest="output_path", help="Path to the output directory, required", required=True
-    )
-    parser.add_argument("-cons", "--cons_file", dest="cons_file", help="Path to cons file")
-    parser.add_argument(
-        "-r",
-        "--reference",
-        dest="reference_file",
-        help="Path to the reference sequence in Fasta format, Used for annotation, required",
-        default="reference",
-    )
-    parser.add_argument(
-        "-s",
-        "--sample_name",
-        dest="sample_name",
-        help="Sample name that will be used as base name for the output files. \
-                        If excluded the sample name will be extracted from the BAM file.",
-    )
-    parser.add_argument("-p", "--params_file", dest="params_file", help="Params file")
-    parser.add_argument(
-        "-f",
-        "--fsize",
-        dest="fsize",
-        help="Family size cutoff (consensus cutoff) for variant calling. [default = %(default)s]",
-        default=3,
-    )
-    parser.add_argument(
-        "-method",
-        "--vc-method",
-        dest="vc_method",
-        help="Variant calling method, Either 'count' or 'bbmodel'. [default = %(default)s]",
-        default="bbmodel",
-    )
-    parser.add_argument(
-        "-count",
-        "--count_cutoff",
-        dest="count_cutoff",
-        help="Consensus read count cutoff (minimum variant allele depth) for calling a variant if method=count [default = %(default)s]",
-        default=5,
-    )
-    parser.add_argument(
-        "-Q",
-        "--qscore_cutoff",
-        dest="qvalue_threshold",
-        help="Qscore threshold (Minimum variant significance score) for Variant calling, only if method=bbmodel [default = %(default)s]",
-        default=10,
-    )
-    args = parser.parse_args(sys.argv[1:])
-
-    logging.basicConfig(format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=logging.DEBUG)
-    logging.info("Starting UMI Error Correct")
-
-    return args
 
 
 def parse_cons_file(filename, fsize=3):
@@ -201,13 +136,3 @@ def run_call_variants(args):
         Qsig = Q[a1 >= float(args.count_cutoff)]
     outfilename = Path(args.output_path) / f"{args.sample_name}.vcf"
     write_vcf(str(outfilename), rout, Qsig, args.reference_file)
-
-
-def main_cli():
-    """CLI entry point."""
-    args = parseArgs()
-    run_call_variants(args)
-
-
-if __name__ == "__main__":
-    main_cli()

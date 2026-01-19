@@ -1,59 +1,10 @@
 #!/usr/bin/env python3
-import argparse
 import logging
 import subprocess
 import sys
 from pathlib import Path
 
 import pysam
-
-from umierrorcorrect.version import __version__
-
-
-def parseArgs():
-    parser = argparse.ArgumentParser(
-        description=f"UmiErrorCorrect v. {__version__}. \
-                                                  Pipeline for analyzing barcoded amplicon sequencing \
-                                                  data with Unique molecular identifiers (UMI)"
-    )
-    parser.add_argument(
-        "-o", "--output_path", dest="output_path", help="Path to the output directory, required", required=True
-    )
-    parser.add_argument("-r1", "--read1", dest="read1", help="Path to first FASTQ file, R1, required", required=True)
-    parser.add_argument("-r2", "--read2", dest="read2", help="Path to second FASTQ file, R2 if applicable")
-    parser.add_argument(
-        "-r",
-        "--reference",
-        dest="reference_file",
-        help="Path to the reference sequence in Fasta format (indexed), Required",
-        required=True,
-    )
-    parser.add_argument(
-        "-s",
-        "--sample_name",
-        dest="sample_name",
-        help="Sample name that will be used as base name for the output files. \
-                              If excluded the sample name will be extracted from the fastq files.",
-    )
-    parser.add_argument(
-        "-remove",
-        "--remove_large_files",
-        dest="remove_large_files",
-        action="store_true",
-        help="Include this flag to remove the original Fastq and BAM files (reads without error correction).",
-    )
-
-    parser.add_argument(
-        "-t",
-        "--num_threads",
-        dest="num_threads",
-        help="Number of threads to run the program on. Default=%(default)s",
-        default="1",
-    )
-    args = parser.parse_args(sys.argv[1:])
-    logging.basicConfig(format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S", level=logging.DEBUG)
-    logging.info("Starting UMI Error Correct")
-    return args
 
 
 def check_output_directory(outdir):
@@ -132,26 +83,3 @@ def run_mapping(num_threads, reference_file, fastq_files, output_path, sample_na
             Path(fastq_files[1]).unlink()
     logging.info("Finished mapping")
     return sorted_bam
-
-
-def main_cli():
-    """CLI entry point."""
-    args = parseArgs()
-    args.output_path = check_output_directory(args.output_path)
-    if args.read2 is None:
-        fastq_files = [args.read1]
-        mode = "single"
-    else:
-        fastq_files = [args.read1, args.read2]
-        mode = "paired"
-
-    if not args.sample_name:
-        args.sample_name = get_sample_name(args.read1, mode)
-
-    run_mapping(
-        args.num_threads, args.reference_file, fastq_files, args.output_path, args.sample_name, args.remove_large_files
-    )
-
-
-if __name__ == "__main__":
-    main_cli()
