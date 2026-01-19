@@ -581,7 +581,7 @@ def cluster_umis_all_regions(
     region_from_tag=False,
     starts=[],
 ):
-    """Function for running UMI cluestering and error correction using num_cpus threads,
+    """Function for running UMI clustering and error correction using num_cpus threads,
     i.e. one region on each thread."""
     argvec = []
     bamfilelist = []

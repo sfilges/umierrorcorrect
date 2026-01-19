@@ -46,12 +46,12 @@ def group_by_position(f, chrx, pos_threshold):
             current_end = pos
             # current_aend = line.reference_end
             regions[pos] = Counter()
-            barcode = line.qname.split(":")[-1]
+            barcode = line.qname.rsplit(":", 1)[-1]
             # if barcode not in regions[current_pos]:
             #     regions[current_pos][barcode]=0
             regions[current_pos][barcode] += 1
         else:
-            barcode = line.qname.split(":")[-1]
+            barcode = line.qname.rsplit(":", 1)[-1]
             # if barcode not in regions[current_pos]:
             #     regions[current_pos][barcode]=0
             regions[current_pos][barcode] += 1
@@ -80,7 +80,7 @@ def count_umis_in_region(f, chrx, pos_start, pos_end):
     reads = f.fetch(chrx, pos_start, pos_end)
     for line in reads:
         # pos = line.pos
-        barcode = line.qname.split(":")[-1]
+        barcode = line.qname.rsplit(":", 1)[-1]
         region[barcode] += 1
     return region
 
@@ -173,7 +173,7 @@ def read_bam_from_tag(infile):
                 regions[contig][utag] = Counter()
                 starts[contig][utag] = r.reference_start
                 ends[contig][utag] = r.reference_end
-            barcode = r.qname.split(":")[-1]
+            barcode = r.qname.rsplit(":", 1)[-1]
             regions[contig][utag][barcode] += 1
             if r.reference_end > ends[contig][utag]:
                 ends[contig][utag] = r.reference_end

@@ -27,7 +27,7 @@ def filter_bam(infilename, outfilename, consensus_cutoff):
     with pysam.AlignmentFile(infilename, "rb") as f, pysam.AlignmentFile(outfilename, "wb", template=f) as g:
         reads = f.fetch()
         for read in reads:
-            size = int(read.qname.split("=")[-1])
+            size = int(read.qname.rsplit("=", 1)[-1])
             if size >= consensus_cutoff:
                 g.write(read)
 

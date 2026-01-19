@@ -15,6 +15,25 @@ import pysam
 from umierrorcorrect.src.group import readBam
 from umierrorcorrect.src.umi_cluster import cluster_barcodes, get_connected_components, merge_clusters
 
+# Pre-computed lookup tables for phred score conversions (avoid repeated 10**x calculations)
+# Phred scores typically range from 0-93 (ASCII 33-126)
+_PHRED_TO_PROB = tuple(1.0 - (10.0 ** (-q / 10.0)) for q in range(94))
+_PHRED_TO_ERROR = tuple(10.0 ** (-q / 10.0) for q in range(94))
+
+
+def _phred_to_prob(phred: int) -> float:
+    """Convert phred score to probability of correctness using lookup table."""
+    if phred < 94:
+        return _PHRED_TO_PROB[phred]
+    return _PHRED_TO_PROB[93]  # Cap at max
+
+
+def _phred_to_error(phred: int) -> float:
+    """Convert phred score to error probability using lookup table."""
+    if phred < 94:
+        return _PHRED_TO_ERROR[phred]
+    return _PHRED_TO_ERROR[93]  # Cap at max
+
 
 class consensus_read:
     """Class for representing a consensus read, useful for writing to BAM"""
@@ -22,36 +41,52 @@ class consensus_read:
     def __init__(self, contig, regionid, position_start, name, count):
         self.contig = contig
         self.start_pos = position_start
-        self.seq = ""
-        self.qual = ""
+        self._seq_parts = []  # Use list for O(1) append
+        self._qual_parts = []  # Use list for O(1) append
+        self._cigar_parts = []  # Use list for O(1) append
         self.indel_read = 0
         self.nmtag = 0
-        self.cigarstring = ""
         self.is_split_read = False
         self.splits = []
         self.json = {}
         self.name = f"Consensus_read_{regionid}_{name}_Count={count}"
         self.count = count
 
+    @property
+    def seq(self):
+        """Lazily join sequence parts."""
+        return "".join(self._seq_parts)
+
+    @property
+    def qual(self):
+        """Lazily join quality parts."""
+        return "".join(self._qual_parts)
+
+    @property
+    def cigarstring(self):
+        """Lazily join cigar parts."""
+        return "".join(self._cigar_parts)
+
     def add_base(self, base, qual):
-        self.seq = self.seq + base
-        self.qual = self.qual + qual
-        self.cigarstring += "0"  # todo mismatch
+        self._seq_parts.append(base)
+        self._qual_parts.append(qual)
+        self._cigar_parts.append("0")  # todo mismatch
 
     def add_insertion(self, sequence):
-        self.seq = self.seq + sequence
-        self.qual += "]" * len(sequence)
-        self.cigarstring += "1" * len(sequence)
+        self._seq_parts.append(sequence)
+        self._qual_parts.append("]" * len(sequence))
+        self._cigar_parts.append("1" * len(sequence))
         self.nmtag += len(sequence)
         self.indel_read = 1
 
     def add_deletion(self, dellength):
-        self.cigarstring += "2" * dellength
+        self._cigar_parts.append("2" * dellength)
         self.nmtag += int(dellength)
         self.indel_read = -1
 
     def get_cigar(self):
-        groups = groupby(self.cigarstring)
+        cigarstring = self.cigarstring
+        groups = groupby(cigarstring)
         cigar = tuple((int(label), sum(1 for _ in group)) for label, group in groups)
         return cigar
 
@@ -164,17 +199,21 @@ def get_ascii(value):
 
 
 def calc_consensus(base, cons_pos):
-    """Function for calculating the combined score for a base at a position"""
-    prod = 1
+    """Function for calculating the combined score for a base at a position.
+
+    Uses pre-computed lookup tables for phred score conversions to avoid
+    expensive 10**x calculations in the hot loop.
+    """
+    prod = 1.0
     for nucl in cons_pos:
         if nucl in base:
             for phred in cons_pos[nucl]:
-                if not phred == 0:
-                    prod = prod * (1 - (10 ** (-phred / 10)))
-        if nucl not in base and nucl in "ATCG":
+                if phred != 0:
+                    prod *= _phred_to_prob(phred)
+        elif nucl in "ATCG":
             for phred in cons_pos[nucl]:
-                if not phred == 0:
-                    prod = prod * (10 ** (-phred / 10))
+                if phred != 0:
+                    prod *= _phred_to_error(phred)
     return prod
 
 
@@ -509,12 +548,15 @@ def get_cons_dict(bamfilename, umis, contig, start, end, include_singletons):
     with pysam.AlignmentFile(bamfilename, "rb") as f:
         alignment = f.fetch(contig, start, end)
         for read in alignment:
-            barcode = read.qname.split(":")[-1]
+            # Use rsplit with maxsplit=1 - more efficient than split(":")[-1]
+            # as it only splits once from the right
+            barcode = read.qname.rsplit(":", 1)[-1]
             pos = read.pos
-            if pos >= start and pos <= end:
-                if barcode in umis:
-                    cluster = umis[barcode].centroid
-                    cluster_size = umis[barcode].count
+            if start <= pos <= end:
+                umi_info = umis.get(barcode)
+                if umi_info is not None:
+                    cluster = umi_info.centroid
+                    cluster_size = umi_info.count
                     if cluster_size > 1:
                         if cluster not in position_matrix:
                             position_matrix[cluster] = []
