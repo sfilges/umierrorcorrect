@@ -5,13 +5,15 @@ This module provides functions for calculating and reporting statistics
 from consensus BAM files and histogram data.
 """
 
-import logging
 from collections import Counter
 from pathlib import Path
 
 import pysam
 
 from umierrorcorrect.core.constants import DEFAULT_FAMILY_SIZES, HISTOGRAM_SUFFIX
+from umierrorcorrect.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class region_cons_stat:
@@ -211,7 +213,7 @@ def get_percent_mapped_reads(num_fastq_reads, bamfile):
 
 
 def run_get_consensus_statistics(output_path, consensus_filename, stat_filename, output_raw, samplename):
-    logging.info("Getting consensus statistics")
+    logger.info("Getting consensus statistics")
     out_path = Path(output_path)
     if not consensus_filename:
         consensus_filename = str(list(out_path.glob("*_consensus_reads.bam"))[0])
@@ -228,7 +230,7 @@ def run_get_consensus_statistics(output_path, consensus_filename, stat_filename,
     if not samplename:
         samplename = Path(stat_filename).stem
     outfilename = out_path / f"{samplename}_summary_statistics.txt"
-    logging.info(f"Writing consensus statistics to {outfilename}")
+    logger.info(f"Writing consensus statistics to {outfilename}")
     with outfilename.open("w") as g:
         g.write(histall.write_stats() + "\n")
         for stat in hist:
@@ -250,7 +252,7 @@ def run_get_consensus_statistics(output_path, consensus_filename, stat_filename,
 
     # print(hist)
     # plot_histogram(hist,output_path+'/histogram.png')
-    logging.info("Finished consensus statistics")
+    logger.info("Finished consensus statistics")
     # write_report()
 
 

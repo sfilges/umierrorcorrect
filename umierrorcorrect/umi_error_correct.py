@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import json
-import logging
 import re
 import shutil
 import subprocess
@@ -23,8 +22,11 @@ from umierrorcorrect.core.constants import DEFAULT_FAMILY_SIZES, HISTOGRAM_SUFFI
 from umierrorcorrect.core.get_cons_info import calc_major_nonref_allele_frequency, get_cons_info, write_consensus
 from umierrorcorrect.core.get_regions_from_bed import get_overlap, merge_regions, read_bed, sort_regions
 from umierrorcorrect.core.group import read_bam_from_bed, read_bam_from_tag, readBam
+from umierrorcorrect.core.logging_config import get_logger
 from umierrorcorrect.core.umi_cluster import cluster_barcodes, get_connected_components, merge_clusters
 from umierrorcorrect.core.utils import check_output_directory, get_sample_name
+
+logger = get_logger(__name__)
 
 # Column indices for consensus file parsing
 CONS_FILE_POS_COL = 2  # Column index for position
@@ -324,9 +326,6 @@ def merge_duplicate_positions(args):
                                     )
                         positions.append(pos)
 
-    # os.remove(cons_file)
-    # os.rename(cons_file+'_new',cons_file)
-
 
 def merge_duplicate_positions_all_chromosomes(duppos, cons_file, num_cpus):
     argvec = []
@@ -344,6 +343,7 @@ def merge_duplicate_positions_all_chromosomes(duppos, cons_file, num_cpus):
 
 
 def merge_tmp_cons_files(chrlist, cons_file):
+    """Merge all temporary consensus files into a single file."""
     try:
         chrlist_sorted = sorted(chrlist, key=int)
     except ValueError:
@@ -485,8 +485,10 @@ def cluster_umis_all_regions(
     region_from_tag=False,
     starts=None,
 ):
-    """Function for running UMI clustering and error correction using num_cpus threads,
-    i.e. one region on each thread."""
+    """
+    Function for running UMI clustering and error correction using num_cpus threads,
+    i.e. one region on each thread.
+    """
     if starts is None:
         starts = {}
     argvec = []
@@ -591,7 +593,7 @@ def cluster_umis_on_position(bamfilename, position_threshold, group_method, bedf
 
 def run_umi_errorcorrect(args):
     """Run the umi clustering and consensus read generation (error correction)"""
-    logging.info("Starting UMI clustering")
+    logger.info("Starting UMI clustering")
     args.output_path = check_output_directory(args.output_path)
 
     if args.regions_from_bed:
@@ -610,8 +612,8 @@ def run_umi_errorcorrect(args):
     else:
         print("Please choose consensus method between 'position','most_common','MSA'")
         sys.exit(1)
-    logging.info(f"Group by position method: {group_method}")
-    logging.info(f"Consensus method: {consensus_method}")
+    logger.info(f"Group by position method: {group_method}")
+    logger.info(f"Consensus method: {consensus_method}")
     output_path = Path(args.output_path)
     if not args.bam_file and args.sample_name:
         # see if it is possible to guess bam file from previous step.
@@ -640,12 +642,12 @@ def run_umi_errorcorrect(args):
     nregions = 0
     for chrx in regions:
         nregions += len(regions[chrx])
-    logging.info(f"Number of regions, {nregions}")
+    logger.info(f"Number of regions, {nregions}")
 
     edit_distance_threshold = args.edit_distance_threshold
     num_cpus = int(args.num_threads) if args.num_threads else int(cpu_count())
-    logging.info("Starting Consensus sequence generation")
-    logging.info(f"Starting {num_cpus} threads")
+    logger.info("Starting Consensus sequence generation")
+    logger.info(f"Starting {num_cpus} threads")
     fasta = args.reference_file
     if args.bed_file:
         bedregions = read_bed(args.bed_file)
@@ -707,7 +709,7 @@ def run_umi_errorcorrect(args):
     if any(duppos):
         merge_duplicate_positions_all_chromosomes(duppos, cons_file, num_cpus)
     merge_duplicate_stat(stats_file)
-    logging.info(
+    logger.info(
         f"Consensus generation complete, output written to {args.output_path}/{args.sample_name}_consensus_reads.bam, "
         f"{args.output_path}/{args.sample_name}_cons.tsv"
     )

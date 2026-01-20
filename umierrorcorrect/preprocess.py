@@ -12,15 +12,16 @@ Preprocess the fastq files by removing the unique molecular index and add it to 
 
 """
 
-import logging
 import subprocess
 import sys
 from pathlib import Path
 
 from umierrorcorrect.core.check_args import check_args_fastq
-from umierrorcorrect.core.logging_config import log_subprocess_stderr
+from umierrorcorrect.core.logging_config import get_logger, log_subprocess_stderr
 from umierrorcorrect.core.read_fastq_records import read_fastq, read_fastq_paired_end
 from umierrorcorrect.core.utils import check_output_directory
+
+logger = get_logger(__name__)
 
 
 def generate_random_dir(tmpdir):
@@ -118,7 +119,7 @@ def preprocess_pe(r1file, r2file, outfile1, outfile2, barcode_length, spacer_len
 
 def run_preprocessing(args):
     """Start preprocessing."""
-    logging.info(f"Start preprocessing of sample {args.sample_name}")
+    logger.info(f"Start preprocessing of sample {args.sample_name}")
 
     if args.tmpdir:
         newtmpdir = generate_random_dir(args.tmpdir)
@@ -139,7 +140,7 @@ def run_preprocessing(args):
         else:
             r1file = run_unpigz(args.read1, newtmpdir, args.num_threads, args.gziptool)
 
-    logging.info(f"Writing output files to {args.output_path}")
+    logger.info(f"Writing output files to {args.output_path}")
     if args.adapter_trimming is True:
         if args.adapter_sequence.lower() == "illumina":
             adapter = "AGATCGGAAGAGC"
@@ -174,7 +175,7 @@ def run_preprocessing(args):
                 r1file,
                 r2file,
             ]
-        logging.info(f"Performing adapter trimming using cutadapt with adapter sequence {adapter}")
+        logger.info(f"Performing adapter trimming using cutadapt with adapter sequence {adapter}")
         p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, stderr = p.communicate()
         log_subprocess_stderr(stderr, "cutadapt")
@@ -220,7 +221,7 @@ def run_preprocessing(args):
             r2path.unlink()
         Path(newtmpdir).rmdir()
         fastqfiles = [outfile1 + ".gz", outfile2 + ".gz"]
-    logging.info("Finished preprocessing")
+    logger.info("Finished preprocessing")
     return (fastqfiles, nseqs)
 
 

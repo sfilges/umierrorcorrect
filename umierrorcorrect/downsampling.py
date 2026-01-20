@@ -5,7 +5,6 @@ This module provides functions for generating downsampling analysis plots
 and statistics to assess sequencing depth and UMI family coverage.
 """
 
-import logging
 import random
 from collections import Counter
 from pathlib import Path
@@ -14,10 +13,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from umierrorcorrect.core.constants import DEFAULT_FAMILY_SIZES, HISTOGRAM_SUFFIX
+from umierrorcorrect.core.logging_config import get_logger
 from umierrorcorrect.get_consensus_statistics import (
     get_stat,
     region_cons_stat,
 )
+
+logger = get_logger(__name__)
 
 
 def plot_downsampling(results_tot, fsize, plot_filename):
@@ -129,7 +131,7 @@ def run_downsampling(output_path, consensus_filename, stat_filename, fsize, samp
         fsize: Family size cutoff for downsampling plot.
         samplename: Sample name for output files (auto-detected if None).
     """
-    logging.info("Getting consensus statistics")
+    logger.info("Getting consensus statistics")
     out_path = Path(output_path)
 
     if not consensus_filename:

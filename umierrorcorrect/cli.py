@@ -48,85 +48,6 @@ def main(
 
 
 @app.command()
-def run(
-    read1: Annotated[Path, typer.Option("-r1", "--read1", help="Path to first FASTQ file (R1).")],
-    reference: Annotated[Path, typer.Option("-r", "--reference", help="Path to reference genome FASTA.")],
-    output: Annotated[Path, typer.Option("-o", "--output", help="Path to output directory.")],
-    read2: Annotated[Optional[Path], typer.Option("-r2", "--read2", help="Path to second FASTQ file (R2).")] = None,
-    bed_file: Annotated[
-        Optional[Path], typer.Option("-bed", "--bed-file", help="Path to BED file defining targeted regions.")
-    ] = None,
-    umi_length: Annotated[int, typer.Option("-ul", "--umi-length", help="Length of UMI sequence.")] = 12,
-    spacer_length: Annotated[
-        int, typer.Option("-sl", "--spacer-length", help="Length of spacer between UMI and read.")
-    ] = 0,
-    sample_name: Annotated[
-        Optional[str], typer.Option("-s", "--sample-name", help="Sample name for output files.")
-    ] = None,
-    threads: Annotated[int, typer.Option("-t", "--threads", help="Number of threads.")] = 1,
-    edit_distance: Annotated[
-        int, typer.Option("-d", "--edit-distance", help="Edit distance threshold for UMI clustering.")
-    ] = 1,
-    dual_index: Annotated[bool, typer.Option("--dual-index", help="Use dual indices (UMIs on R1 and R2).")] = False,
-    reverse_index: Annotated[bool, typer.Option("--reverse-index", help="UMI is on R2 instead of R1.")] = False,
-    adapter_trimming: Annotated[bool, typer.Option("--trim", help="Perform 3' adapter trimming.")] = False,
-    remove_large_files: Annotated[bool, typer.Option("--remove", help="Remove original FASTQ and BAM files.")] = False,
-) -> None:
-    """Run the complete UMI Error Correct pipeline.
-
-    This command runs all pipeline steps: preprocessing, mapping, UMI error correction,
-    consensus statistics, and variant calling.
-    """
-    from argparse import Namespace
-
-    from umierrorcorrect.run_umierrorcorrect import main as run_pipeline
-
-    # Set up file logging
-    output.mkdir(parents=True, exist_ok=True)
-    log_path = get_log_path(output)
-    add_file_handler(log_path)
-    logger.info(f"Logging to {log_path}")
-
-    # Convert to legacy args format
-    args = Namespace(
-        read1=str(read1),
-        read2=str(read2) if read2 else None,
-        reference_file=str(reference),
-        output_path=str(output),
-        bed_file=str(bed_file) if bed_file else None,
-        umi_length=str(umi_length),
-        spacer_length=str(spacer_length),
-        sample_name=sample_name,
-        num_threads=str(threads),
-        edit_distance_threshold=edit_distance,
-        dual_index=dual_index,
-        reverse_index=reverse_index,
-        adapter_trimming=adapter_trimming,
-        adapter_sequence="illumina",
-        remove_large_files=remove_large_files,
-        force=False,
-        regions_from_bed=False,
-        include_singletons=True,
-        position_threshold=20,
-        indel_frequency_threshold=60.0,
-        consensus_frequency_threshold=60.0,
-        group_method="position",
-        consensus_method="position",
-        count_cutoff=3,
-        qvalue_threshold=0.01,
-        fsize=3,
-        vc_method="count",
-        params_file=None,
-        output_json=False,
-        tmpdir=None,
-    )
-
-    logger.info("Starting UMI Error Correct pipeline")
-    run_pipeline(args)
-    logger.info("Pipeline complete!")
-
-
-@app.command()
 def preprocess(
     read1: Annotated[Path, typer.Option("-r1", "--read1", help="Path to first FASTQ file (R1).")],
     output: Annotated[Path, typer.Option("-o", "--output", help="Path to output directory.")],
@@ -410,6 +331,12 @@ def fit_model(
 
 @app.command()
 def batch(
+    read1: Annotated[
+        Optional[Path], typer.Option("-r1", "--read1", help="Path to first FASTQ file (R1) for single-sample mode.")
+    ] = None,
+    read2: Annotated[
+        Optional[Path], typer.Option("-r2", "--read2", help="Path to second FASTQ file (R2) for single-sample mode.")
+    ] = None,
     input_dir: Annotated[
         Optional[Path], typer.Option("-i", "--input-dir", help="Directory containing FASTQ files to process.")
     ] = None,
@@ -426,6 +353,9 @@ def batch(
     spacer_length: Annotated[
         int, typer.Option("-sl", "--spacer-length", help="Length of spacer between UMI and read.")
     ] = 0,
+    sample_name: Annotated[
+        Optional[str], typer.Option("-s", "--sample-name", help="Sample name (for single-sample mode).")
+    ] = None,
     threads: Annotated[int, typer.Option("-t", "--threads", help="Total number of threads to use.")] = 8,
     samples_parallel: Annotated[
         int, typer.Option("-j", "--jobs", help="Number of samples to process in parallel.")
@@ -443,13 +373,26 @@ def batch(
     ] = 1,
     dual_index: Annotated[bool, typer.Option("--dual-index", help="Use dual indices (UMIs on R1 and R2).")] = False,
     reverse_index: Annotated[bool, typer.Option("--reverse-index", help="UMI is on R2 instead of R1.")] = False,
+    adapter_trimming: Annotated[bool, typer.Option("--trim", help="Perform 3' adapter trimming.")] = False,
+    remove_large_files: Annotated[bool, typer.Option("--remove", help="Remove original FASTQ and BAM files.")] = False,
 ) -> None:
-    """Process multiple samples in batch.
+    """Run the UMI Error Correct pipeline.
 
-    Discovers FASTQ pairs in a directory or reads from a sample sheet,
-    then processes each sample through the UMI Error Correct pipeline in parallel.
+    Process samples through the complete pipeline: preprocessing, mapping, UMI error
+    correction, consensus statistics, and variant calling.
+
+    Input modes (exactly one required):
+      --read1/-r1: Single-sample mode - process one FASTQ file directly
+      --input-dir/-i: Directory mode - discover and process all FASTQ pairs
+      --sample-sheet: Sample sheet mode - process samples listed in CSV/TSV
 
     Examples:
+
+        # Single sample mode
+        umierrorcorrect batch -r1 sample_R1.fastq.gz -r genome.fa -o results/ -ul 12
+
+        # With paired-end reads
+        umierrorcorrect batch -r1 sample_R1.fastq.gz -r2 sample_R2.fastq.gz -r genome.fa -o results/
 
         # Process all FASTQ files in a directory
         umierrorcorrect batch -i /path/to/fastqs -r genome.fa -o results/ -ul 12
@@ -460,19 +403,50 @@ def batch(
         # With pre-filtering and QC
         umierrorcorrect batch -i /path/to/fastqs -r genome.fa -o results/ --prefilter fastp --qc -t 16
     """
-    from umierrorcorrect.batch import batch_process, discover_samples, parse_sample_sheet
+    from umierrorcorrect.batch import Sample, batch_process, discover_samples, parse_sample_sheet
 
-    # Validate input options
-    if input_dir is None and sample_sheet is None:
-        console.print("[red]Error:[/red] Either --input-dir or --sample-sheet must be provided.")
+    # Validate input options - exactly one input mode must be provided
+    input_modes = sum([read1 is not None, input_dir is not None, sample_sheet is not None])
+    if input_modes == 0:
+        console.print("[red]Error:[/red] One of --read1, --input-dir, or --sample-sheet must be provided.")
+        raise typer.Exit(1)
+    if input_modes > 1:
+        console.print("[red]Error:[/red] Only one of --read1, --input-dir, or --sample-sheet can be provided.")
         raise typer.Exit(1)
 
-    if input_dir is not None and sample_sheet is not None:
-        console.print("[red]Error:[/red] Cannot use both --input-dir and --sample-sheet. Choose one.")
+    # Validate read2 is only used with read1
+    if read2 is not None and read1 is None:
+        console.print("[red]Error:[/red] --read2 can only be used with --read1.")
         raise typer.Exit(1)
 
-    # Discover or parse samples
-    if sample_sheet is not None:
+    # Discover or parse samples based on input mode
+    if read1 is not None:
+        # Single-sample mode
+        if not read1.exists():
+            console.print(f"[red]Error:[/red] Read1 file not found: {read1}")
+            raise typer.Exit(1)
+        if read2 is not None and not read2.exists():
+            console.print(f"[red]Error:[/red] Read2 file not found: {read2}")
+            raise typer.Exit(1)
+
+        # Derive sample name from filename if not provided
+        if sample_name is None:
+            # Extract sample name from R1 filename
+            name = read1.stem
+            for suffix in [".fastq", ".fq"]:
+                if name.endswith(suffix):
+                    name = name[: -len(suffix)]
+            # Remove common R1 markers
+            for marker in ["_R1", "R1", "_1"]:
+                if marker in name:
+                    name = name.split(marker)[0].rstrip("_")
+                    break
+            derived_sample_name = name
+        else:
+            derived_sample_name = sample_name
+
+        samples = [Sample(name=derived_sample_name, read1=read1, read2=read2)]
+    elif sample_sheet is not None:
         if not sample_sheet.exists():
             console.print(f"[red]Error:[/red] Sample sheet not found: {sample_sheet}")
             raise typer.Exit(1)
@@ -482,6 +456,7 @@ def batch(
             console.print(f"[red]Error parsing sample sheet:[/red] {e}")
             raise typer.Exit(1) from None
     else:
+        # input_dir mode
         if not input_dir.exists():
             console.print(f"[red]Error:[/red] Input directory not found: {input_dir}")
             raise typer.Exit(1)
@@ -507,18 +482,32 @@ def batch(
     add_file_handler(log_path)
     logger.info(f"Logging to {log_path}")
 
-    console.print("[bold green]UMI Error Correct - Batch Processing[/bold green]")
-    console.print(f"  Samples found: {len(samples)}")
+    # Determine processing mode for display
+    if read1 is not None:
+        mode_str = "Single Sample"
+    elif input_dir is not None:
+        mode_str = "Directory"
+    else:
+        mode_str = "Sample Sheet"
+
+    console.print("[bold green]UMI Error Correct[/bold green]")
+    console.print(f"  Mode: {mode_str}")
+    console.print(f"  Samples: {len(samples)}")
     console.print(f"  Reference: {reference}")
     console.print(f"  Output: {output_dir}")
-    console.print(f"  Threads: {threads} ({samples_parallel} samples in parallel)")
+    if len(samples) > 1:
+        console.print(f"  Threads: {threads} ({samples_parallel} samples in parallel)")
+    else:
+        console.print(f"  Threads: {threads}")
     if prefilter:
         console.print(f"  Pre-filter: {prefilter}")
+    if adapter_trimming:
+        console.print("  Adapter trimming: enabled")
     if qc:
         console.print("  QC reports: enabled")
     console.print()
 
-    logger.info(f"Starting batch processing of {len(samples)} samples")
+    logger.info(f"Starting processing of {len(samples)} sample(s)")
 
     results = batch_process(
         samples=samples,
@@ -536,6 +525,8 @@ def batch(
         merge_reads=merge_reads,
         phred_score=phred_score,
         run_qc=qc,
+        adapter_trimming=adapter_trimming,
+        remove_large_files=remove_large_files,
     )
 
     # Exit with non-zero code if any sample failed
@@ -544,7 +535,7 @@ def batch(
         logger.warning(f"{failed_count} sample(s) failed to process")
         raise typer.Exit(1)
 
-    logger.info("Batch processing complete!")
+    logger.info("Processing complete!")
 
 
 def main_cli() -> None:

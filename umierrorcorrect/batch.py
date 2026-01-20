@@ -343,6 +343,8 @@ def process_sample(
     edit_distance: int = 1,
     dual_index: bool = False,
     reverse_index: bool = False,
+    adapter_trimming: bool = False,
+    remove_large_files: bool = False,
 ) -> ProcessingResult:
     """Process a single sample through the UMI Error Correct pipeline.
 
@@ -357,13 +359,15 @@ def process_sample(
         edit_distance: Edit distance threshold for UMI clustering.
         dual_index: Use dual indices (UMIs on R1 and R2).
         reverse_index: UMI is on R2 instead of R1.
+        adapter_trimming: Perform 3' adapter trimming.
+        remove_large_files: Remove original FASTQ and BAM files.
 
     Returns:
         ProcessingResult with outcome of processing.
     """
     from argparse import Namespace
 
-    from umierrorcorrect.run_umierrorcorrect import main as run_pipeline
+    from umierrorcorrect.pipeline import run_pipeline
 
     sample_output_dir = output_dir / sample.name
     sample_output_dir.mkdir(parents=True, exist_ok=True)
@@ -382,9 +386,9 @@ def process_sample(
         edit_distance_threshold=edit_distance,
         dual_index=dual_index,
         reverse_index=reverse_index,
-        adapter_trimming=False,
+        adapter_trimming=adapter_trimming,
         adapter_sequence="illumina",
-        remove_large_files=False,
+        remove_large_files=remove_large_files,
         force=False,
         regions_from_bed=False,
         include_singletons=True,
@@ -442,6 +446,8 @@ def _process_sample_wrapper(args: tuple) -> ProcessingResult:
         edit_distance,
         dual_index,
         reverse_index,
+        adapter_trimming,
+        remove_large_files,
     ) = args
 
     # Configure logging in subprocess:
@@ -464,6 +470,8 @@ def _process_sample_wrapper(args: tuple) -> ProcessingResult:
         edit_distance=edit_distance,
         dual_index=dual_index,
         reverse_index=reverse_index,
+        adapter_trimming=adapter_trimming,
+        remove_large_files=remove_large_files,
     )
 
 
@@ -483,8 +491,10 @@ def batch_process(
     merge_reads: bool = False,
     phred_score: int = 20,
     run_qc: bool = False,
+    adapter_trimming: bool = False,
+    remove_large_files: bool = False,
 ) -> list[ProcessingResult]:
-    """Process multiple samples in parallel.
+    """Process samples through the UMI Error Correct pipeline.
 
     Args:
         samples: List of samples to process.
@@ -502,6 +512,8 @@ def batch_process(
         merge_reads: Merge overlapping reads with fastp.
         phred_score: Minimum Phred quality score for fastp.
         run_qc: Whether to run FastQC/MultiQC.
+        adapter_trimming: Perform 3' adapter trimming.
+        remove_large_files: Remove original FASTQ and BAM files.
 
     Returns:
         List of ProcessingResult objects.
@@ -586,6 +598,8 @@ def batch_process(
             edit_distance,
             dual_index,
             reverse_index,
+            adapter_trimming,
+            remove_large_files,
         )
         for sample in samples_to_process
     ]

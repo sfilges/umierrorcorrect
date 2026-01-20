@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-import logging
 import subprocess
 import sys
 from pathlib import Path
 
 import pysam
 
-from umierrorcorrect.core.logging_config import log_subprocess_stderr
+from umierrorcorrect.core.logging_config import get_logger, log_subprocess_stderr
+
+logger = get_logger(__name__)
 
 
 def check_bwa_index(reference_file):
@@ -35,13 +36,13 @@ def check_bwa_index(reference_file):
 
 def run_mapping(num_threads, reference_file, fastq_files, output_path, sample_name, remove_large_files):
     """Run mapping with bwa to create a SAM file, then convert it to BAM, sort and index the file"""
-    logging.info("Starting mapping with BWA")
+    logger.info("Starting mapping with BWA")
     check_bwa_index(reference_file)
     output_base = Path(output_path) / sample_name
     sam_file = f"{output_base}.sam"
     bam_file = f"{output_base}.bam"
     sorted_bam = f"{output_base}.sorted.bam"
-    logging.info(f"Creating output file: {sorted_bam}")
+    logger.info(f"Creating output file: {sorted_bam}")
     if len(fastq_files) == 1:
         bwacommand = ["bwa", "mem", "-t", num_threads, reference_file, fastq_files[0]]
     if len(fastq_files) == 2:
@@ -62,5 +63,5 @@ def run_mapping(num_threads, reference_file, fastq_files, output_path, sample_na
         Path(fastq_files[0]).unlink()
         if len(fastq_files) == 2:
             Path(fastq_files[1]).unlink()
-    logging.info("Finished mapping")
+    logger.info("Finished mapping")
     return sorted_bam
