@@ -360,7 +360,7 @@ def downsampling(
     fsize: Annotated[int, typer.Option("-f", "--fsize", help="Family size cutoff for downsampling.")] = 3,
 ) -> None:
     """Generate downsampling analysis plots."""
-    from umierrorcorrect.downsampling_plots import run_downsampling
+    from umierrorcorrect.downsampling import run_downsampling
 
     # Set up file logging
     output.mkdir(parents=True, exist_ok=True)

@@ -1,6 +1,9 @@
 # UMIErrorCorrect
 
-[![PyPI version](https://badge.fury.io/py/umierrorcorrect.svg)](https://badge.fury.io/py/umierrorcorrect) [![Python Versions](https://img.shields.io/pypi/pyversions/umierrorcorrect.svg)](https://pypi.org/project/umierrorcorrect/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![PyPI version](https://badge.fury.io/py/umierrorcorrect.svg)](https://badge.fury.io/py/umierrorcorrect)
+[![Python Versions](https://img.shields.io/pypi/pyversions/umierrorcorrect.svg)](https://pypi.org/project/umierrorcorrect/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 Pipeline for analyzing barcoded amplicon sequencing data with Unique Molecular Identifiers (UMI).
 

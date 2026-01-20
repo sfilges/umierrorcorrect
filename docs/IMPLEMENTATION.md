@@ -67,7 +67,7 @@ get_consensus_statistics = "umierrorcorrect.get_consensus_statistics:main_cli"
 call_variants = "umierrorcorrect.call_variants:main_cli"
 filter_bam = "umierrorcorrect.filter_bam:main_cli"
 filter_cons = "umierrorcorrect.filter_cons:main_cli"
-downsampling_plots = "umierrorcorrect.downsampling_plots:main_cli"
+downsampling = "umierrorcorrect.downsampling:main_cli"
 fit_background_model = "umierrorcorrect.fit_background_model:main_cli"
 
 [project.urls]
