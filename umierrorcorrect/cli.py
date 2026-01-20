@@ -302,9 +302,10 @@ def downsampling(
 
 @app.command(name="fit-model")
 def fit_model(
-    cons_file: Annotated[Optional[Path], typer.Option("--cons", help="Path to cons.tsv file.")] = None,
-    nonbg_file: Annotated[
-        Optional[Path], typer.Option("--nonbg", help="Path to file with non-background positions.")
+    cons_file: Annotated[Path, typer.Option("--cons", help="Path to cons.tsv file.")],
+    known_mutations_file: Annotated[
+        Optional[Path],
+        typer.Option("--known-mutations", help="File with known true mutation positions to exclude from fitting."),
     ] = None,
     out_file: Annotated[Path, typer.Option("-o", "--out", help="Output file for model parameters.")] = Path(
         "bgmodel.params"
@@ -317,8 +318,8 @@ def fit_model(
     from umierrorcorrect.core.fit_background_model import run_fit_bgmodel
 
     args = Namespace(
-        cons_file=str(cons_file) if cons_file else None,
-        nonbgposfile=str(nonbg_file) if nonbg_file else None,
+        cons_file=str(cons_file),
+        known_mutations_file=str(known_mutations_file) if known_mutations_file else None,
         out_file=str(out_file),
         fsize=fsize,
     )

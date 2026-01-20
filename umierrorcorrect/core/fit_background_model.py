@@ -2,68 +2,89 @@
 from pathlib import Path
 
 import numpy as np
-from scipy.optimize import fmin
+from scipy.optimize import minimize
 from scipy.stats import beta
 
 from umierrorcorrect.core.utils import parse_cons_file
 
 
-def betaNLL(params, *args):
+def beta_nll(params: tuple[float, float], data: np.ndarray) -> float:
+    """Compute negative log-likelihood for beta distribution.
+
+    Args:
+        params: Tuple of (alpha, beta) parameters for the beta distribution.
+        data: Array of observed values in the range [0, 1].
+
+    Returns:
+        Negative log-likelihood value (inf if parameters are invalid).
+    """
     a, b = params
-    data = np.array(args[0])
-    pdf = beta.pdf(data, a, b, loc=0, scale=1)
-    lg = np.log(pdf)
-    # lg=np.where(lg==-np.inf,0,lg)
-    mask = np.isfinite(lg)
-    nll = -lg[mask].sum()
-    nll = -1 * np.sum(lg)
-    return nll
+    if a <= 0 or b <= 0:
+        return np.inf
+    log_pdf = beta.logpdf(data, a, b)
+    mask = np.isfinite(log_pdf)
+    return -log_pdf[mask].sum()
 
 
-def get_beta_parameters(data):
+def estimate_beta_parameters(data: np.ndarray) -> tuple[float, float]:
+    """Estimate beta distribution parameters using maximum likelihood.
+
+    Uses method of moments for initial parameter estimates, then optimizes
+    using Nelder-Mead to find MLE parameters.
+
+    Args:
+        data: Array of observed values in the range [0, 1].
+
+    Returns:
+        Tuple of (alpha, beta) parameters for the fitted beta distribution.
+    """
     m = np.mean(data)
     v = np.var(data)
+    # Method of moments for initial guess
     a0 = m * (m * (1 - m) / v - 1)
     b0 = (1 - m) * (m * (1 - m) / v - 1)
-    result = fmin(betaNLL, [a0, b0], args=(data,))
-    return result
+
+    result = minimize(
+        beta_nll,
+        x0=[max(a0, 0.1), max(b0, 0.1)],
+        args=(data,),
+        method="Nelder-Mead",
+    )
+    return result.x[0], result.x[1]
 
 
 def run_fit_bgmodel(args):
-    spikepositions = [178952085, 55599321, 7577558, 7577547, 7577538, 7577120]
-    if args.nonbgposfile:
-        nonbgpos = []
-        with Path(args.nonbgposfile).open() as f:
-            for line in f:
-                line = line.rstrip()
-                nonbgpos.append(line)
+    """Fit beta distribution to model background sequencing noise.
+
+    Reads consensus data and fits a beta distribution to estimate background
+    error rates. Positions with known true mutations should be excluded to
+    avoid skewing the background estimate.
+
+    Args:
+        args: Namespace with attributes:
+            - known_mutations_file: Optional path to file listing positions with
+              known true mutations (one per line) to exclude from fitting
+            - cons_file: Path to consensus file
+            - fsize: Family size threshold
+            - out_file: Output path for fitted parameters
+    """
+    if args.known_mutations_file:
+        known_mutation_positions = Path(args.known_mutations_file).read_text().splitlines()
     else:
-        nonbgpos = spikepositions
+        known_mutation_positions = []
+
     if not args.cons_file:
-        args.cons_file = str(list(Path(args.output_path).glob("*cons.tsv"))[0])
-    args.fsize = int(args.fsize)
-    f1, n1, a1, pos, data = parse_cons_file(args.cons_file, args.fsize, include_position=True)
-    f1 = np.array(f1)
-    n1 = np.array(n1)
-    a1 = np.array(a1)
+        raise ValueError("cons_file is required")
+
+    fsize = int(args.fsize)
+    f1, _n1, _a1, pos, _data = parse_cons_file(args.cons_file, fsize, include_position=True)
+
     pos = np.array(pos)
-    data = np.array(data)
-    result = get_beta_parameters(f1[np.isin(pos, nonbgpos) is not True])
-    # a=prob_bb(n1,a1,result[0],result[1])
-    print(pos, nonbgpos, np.isin(pos, nonbgpos))
+    f1 = np.array(f1)
+
+    # Exclude known mutation positions from background model fitting
+    is_background = ~np.isin(pos, known_mutation_positions)
+    alpha, beta_param = estimate_beta_parameters(f1[is_background])
+
     with Path(args.out_file).open("w") as g:
-        g.write(f"{result[0]}\n")
-        g.write(f"{result[1]}\n")
-    # a[a==inf]=1e-10
-    # a[np.isnan(a)]=1e-10
-    # Q = -10*np.log10(a)
-    # data=np.array(data)
-    # plot_histogram(Q,args.output_path+'/'+args.sample_name+'.histogram.png')
-    # if args.vc_method.lower()=='bbmodel':
-    #    rout=data[Q >= float(args.qvalue_threshold)]
-    #    Qsig=Q[Q >= float(args.qvalue_threshold)]
-    # else:
-    #    rout=data[a1 >= float(args.count_cutoff)]
-    #    Qsig=Q[a1 >= float(args.count_cutoff)]
-    # outfilename=args.output_path+'/'+args.sample_name+'2.vcf'
-    # write_vcf(outfilename,rout,Qsig,args.reference_file)
+        g.write(f"{alpha}\n{beta_param}\n")
