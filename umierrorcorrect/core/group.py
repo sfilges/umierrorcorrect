@@ -1,24 +1,9 @@
 #!/usr/bin/env python3
-import sys
 from collections import Counter
 
 import pysam
 
 from umierrorcorrect.core.get_regions_from_bed import expand_regions_from_bed, merge_regions, read_bed, sort_regions
-
-# class Region:
-#     def __init__(self, pos):
-#         self.start = pos
-#         self.end = pos
-#     def is_inside(self, pos, pos_threshold):
-#     if pos > self.start - pos_threshold and pos < self.end + pos_threshold:
-#             if pos < self.start:
-#                 self.start = pos
-#             if pos > self.end:
-#                 self.end = pos
-#             return(True)
-#         else:
-#             return(False)
 
 
 def get_chromosome_list_from_bam(f):
@@ -61,18 +46,6 @@ def group_by_position(f, chrx, pos_threshold):
             #     current_aend = aend
     ends[current_pos] = current_end + 1
     return (regions, ends)
-    # if len(regions)==0:
-    #     r=Region(pos)
-    #     regions.append(r)
-    # else:
-    #     for rr in regions:
-    #         if not rr.is_inside(pos,10):
-    #             #new region
-    #             rnew=Region(pos)
-    # for rr in regions:
-
-
-#     print(rr.start,rr.end)
 
 
 def count_umis_in_region(f, chrx, pos_start, pos_end):
@@ -178,23 +151,3 @@ def read_bam_from_tag(infile):
             if r.reference_end > ends[contig][utag]:
                 ends[contig][utag] = r.reference_end
     return (regions, starts, ends)
-
-
-def main(filename, bedfile):
-    position_threshold = 10
-    group_method = "automatic"
-    # group_method='fromBed'
-    if group_method == "fromBed":
-        regions = read_bam_from_bed(filename, bedfile, position_threshold)
-    elif group_method == "fromTag":
-        regions = read_bam_from_tag(filename)
-    else:
-        regions, chrends = readBam(filename, position_threshold)
-    for chrx in regions:
-        regions2 = regions[chrx]
-        for rr in regions2:
-            print(chrx, rr, chrends[chrx][rr], regions2[rr].most_common(10))
-
-
-if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])

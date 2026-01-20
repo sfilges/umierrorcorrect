@@ -63,9 +63,8 @@ def preprocess(
     force: Annotated[bool, typer.Option("-f", "--force", help="Overwrite existing files.")] = False,
 ) -> None:
     """Preprocess FASTQ files by extracting UMIs and adding them to read headers."""
-    from argparse import Namespace
-
-    from umierrorcorrect.preprocess import main as run_preprocess
+    from umierrorcorrect.models.models import PreprocessConfig
+    from umierrorcorrect.preprocess import run_preprocessing
 
     # Set up file logging
     output.mkdir(parents=True, exist_ok=True)
@@ -73,14 +72,14 @@ def preprocess(
     add_file_handler(log_path)
     logger.info(f"Logging to {log_path}")
 
-    args = Namespace(
-        read1=str(read1),
-        read2=str(read2) if read2 else None,
-        output_path=str(output),
-        umi_length=str(umi_length),
-        spacer_length=str(spacer_length),
+    config = PreprocessConfig(
+        read1=read1,
+        read2=read2,
+        output_path=output,
+        umi_length=umi_length,
+        spacer_length=spacer_length,
         sample_name=sample_name,
-        num_threads=str(threads),
+        num_threads=threads,
         dual_index=dual_index,
         reverse_index=reverse_index,
         adapter_trimming=adapter_trimming,
@@ -90,8 +89,8 @@ def preprocess(
     )
 
     logger.info("Starting preprocessing")
-    run_preprocess(args)
-    logger.info("Preprocessing complete!")
+    _, nseqs = run_preprocessing(config)
+    logger.info(f"Preprocessing complete! Processed {nseqs} sequences.")
 
 
 @app.command()

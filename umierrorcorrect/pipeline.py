@@ -65,8 +65,24 @@ def run_pipeline(args):
     args = check_args_fastq(args)
     check_bwa_index(args.reference_file)
 
+    from umierrorcorrect.models.models import PreprocessConfig
     # Run preprocessing
-    fastq_files, nseqs = run_preprocessing(args)
+    preprocess_config = PreprocessConfig(
+        read1=Path(args.read1),
+        read2=Path(args.read2) if args.read2 else None,
+        output_path=Path(args.output_path),
+        umi_length=int(args.umi_length),
+        spacer_length=int(args.spacer_length),
+        sample_name=args.sample_name,
+        num_threads=int(args.num_threads),
+        dual_index=args.dual_index,
+        reverse_index=args.reverse_index,
+        adapter_trimming=args.adapter_trimming,
+        adapter_sequence=getattr(args, "adapter_sequence", "illumina"),
+        force=getattr(args, "force", False),
+        tmpdir=getattr(args, "tmpdir", None),
+    )
+    fastq_files, nseqs = run_preprocessing(preprocess_config)
     logger.info(f"Files: {' '.join(fastq_files)}, number of reads: {nseqs}")
 
     # Run mapping

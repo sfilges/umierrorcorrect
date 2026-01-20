@@ -3,7 +3,7 @@
 UMI error correct, preprocess.py - remove UMI and append to the header of Fastq sequences.
 ================================
 
-:Author: Tobias Osterlund
+:Authors: Tobias Osterlund, Stefan Filges
 
 Purpose
 -------
@@ -12,66 +12,110 @@ Preprocess the fastq files by removing the unique molecular index and add it to 
 
 """
 
+import datetime
 import subprocess
-import sys
+import tempfile
 from pathlib import Path
+from typing import Tuple
 
-from umierrorcorrect.core.check_args import check_args_fastq
 from umierrorcorrect.core.logging_config import get_logger, log_subprocess_stderr
 from umierrorcorrect.core.read_fastq_records import read_fastq, read_fastq_paired_end
-from umierrorcorrect.core.utils import check_output_directory
+from umierrorcorrect.models.models import PreprocessConfig
 
 logger = get_logger(__name__)
 
 
-def generate_random_dir(tmpdir):
+def generate_random_dir(tmpdir: str) -> str:
     """Generate a directory for storing temporary files, using a timestamp."""
-    import datetime
-
-    newtmpdir = Path(tmpdir) / f"r{datetime.datetime.now().strftime('%y%m%d_%H%M%S')}"
-    newtmpdir = check_output_directory(str(newtmpdir))
-    return newtmpdir
+    Path(tmpdir).mkdir(parents=True, exist_ok=True)
+    prefix = f"r{datetime.datetime.now().strftime('%y%m%d_%H%M%S')}_"
+    return tempfile.mkdtemp(prefix=prefix, dir=str(tmpdir))
 
 
-def run_unpigz(filename, tmpdir, num_threads, program):
-    """Unzip the fastq.gz files using parallel gzip (pigz)."""
+def run_unpigz(filename: str, tmpdir: str, num_threads: int, program: str) -> str:
+    """Unzip fastq.gz files using parallel gzip (pigz) or gunzip."""
     input_path = Path(filename)
     outfilename = Path(tmpdir) / input_path.name.removesuffix(".gz")
+
     if program == "pigz":
-        command = ["unpigz", "-p", num_threads, "-c", filename]
-    elif program == "gzip":
+        command = ["unpigz", "-p", str(num_threads), "-c", filename]
+    else:
         command = ["gunzip", "-c", filename]
+
     with outfilename.open("w") as g:
-        p = subprocess.Popen(command, stdout=g, stderr=subprocess.PIPE)
-        _, stderr = p.communicate()
-        log_subprocess_stderr(stderr, program)
-        p.wait()
+        result = subprocess.run(command, stdout=g, stderr=subprocess.PIPE, check=True)
+        log_subprocess_stderr(result.stderr, program)
+
     return str(outfilename)
 
 
-def run_gunzip(filename, tmpdir):
-    """Unzip the fastq.gz files using parallel gzip (pigz)."""
-    input_path = Path(filename)
-    outfilename = Path(tmpdir) / input_path.name.removesuffix(".gz")
-    command = ["gunzip", "-c", filename]
-    with outfilename.open("w") as g:
-        p = subprocess.Popen(command, stdout=g, stderr=subprocess.PIPE)
-        _, stderr = p.communicate()
-        log_subprocess_stderr(stderr, "gunzip")
-        p.wait()
-    return str(outfilename)
-
-
-def run_pigz(filename, num_threads, program):
-    """Zip the new fastq files with parallel gzip (pigz)."""
+def run_pigz(filename: str, num_threads: int, program: str) -> None:
+    """Zip fastq files using parallel gzip (pigz) or gzip in-place."""
     if program == "pigz":
-        command = ["pigz", "-p", num_threads, filename]
-    elif program == "gzip":
+        command = ["pigz", "-p", str(num_threads), filename]
+    else:
         command = ["gzip", filename]
-    p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    _, stderr = p.communicate()
-    log_subprocess_stderr(stderr, program)
-    p.wait()
+
+    result = subprocess.run(command, capture_output=True, check=True)
+    log_subprocess_stderr(result.stderr, program)
+
+
+def run_cutadapt(
+    r1file: str,
+    r2file: str | None,
+    output_path: Path,
+    sample_name: str,
+    adapter_sequence: str,
+    mode: str,
+) -> Tuple[str, str | None]:
+    """Run cutadapt to trim adapters."""
+    if adapter_sequence.lower() == "illumina":
+        adapter = "AGATCGGAAGAGC"
+    elif adapter_sequence.lower() == "nextera":
+        adapter = "CTGTCTCTTATA"
+    elif adapter_sequence.lower() == "small-rna":
+        adapter = "ATGGAATTCTCG"
+    else:
+        adapter = adapter_sequence.upper()
+
+    if mode == "single":
+        outfilename = str(output_path / f"{sample_name}_trimmed.fastq")
+        command = ["cutadapt", "-a", adapter, "-o", outfilename, "-O", "3", "-m", "20", r1file]
+        outfile1 = outfilename
+        outfile2 = None
+    else:
+        outfile1 = str(output_path / f"{sample_name}_R1_trimmed.fastq")
+        outfile2 = str(output_path / f"{sample_name}_R2_trimmed.fastq")
+        if r2file is None:
+            raise ValueError("r2file cannot be None in paired mode")
+        command = [
+            "cutadapt",
+            "-a",
+            adapter,
+            "-A",
+            adapter,
+            "-o",
+            outfile1,
+            "-p",
+            outfile2,
+            "-O",
+            "3",
+            "-m",
+            "20",
+            r1file,
+            r2file,
+        ]
+
+    logger.info(f"Performing adapter trimming using cutadapt with adapter sequence {adapter}")
+    result = subprocess.run(command, capture_output=True, check=True)
+    log_subprocess_stderr(result.stderr, "cutadapt")
+
+    # Clean up input files
+    Path(r1file).unlink()
+    if mode != "single" and r2file:
+        Path(r2file).unlink()
+
+    return outfile1, outfile2
 
 
 def preprocess_se(infilename, outfilename, barcode_length, spacer_length):
@@ -117,102 +161,71 @@ def preprocess_pe(r1file, r2file, outfile1, outfile2, barcode_length, spacer_len
     return 2 * nseqs
 
 
-def run_preprocessing(args):
+def run_preprocessing(config: PreprocessConfig) -> Tuple[list[str], int]:
     """Start preprocessing."""
-    logger.info(f"Start preprocessing of sample {args.sample_name}")
+    logger.info(f"Start preprocessing of sample {config.sample_name}")
 
-    if args.tmpdir:
-        newtmpdir = generate_random_dir(args.tmpdir)
+    if config.tmpdir:
+        newtmpdir = generate_random_dir(str(config.tmpdir))
     else:
-        newtmpdir = generate_random_dir(args.output_path)
-    # args.chunksize=int(args.chunksize)
+        newtmpdir = generate_random_dir(str(config.output_path))
+
     # Unzip the fastq.gz files
-    if not args.read1.endswith("gz"):
-        r1file = args.read1
+    if not str(config.read1).endswith("gz"):
+        r1file = str(config.read1)
         removerfiles = False
-        if args.mode == "paired":
-            r2file = args.read2
+        if config.mode == "paired":
+            if not config.read2:
+                raise ValueError("Read2 not provided in paired mode")
+            r2file = str(config.read2)
     else:
         removerfiles = True
-        if args.mode == "paired":
-            r1file = run_unpigz(args.read1, newtmpdir, args.num_threads, args.gziptool)
-            r2file = run_unpigz(args.read2, newtmpdir, args.num_threads, args.gziptool)
+        if config.mode == "paired":
+            if not config.read2:
+                raise ValueError("Read2 not provided in paired mode")
+            r1file = run_unpigz(str(config.read1), newtmpdir, config.num_threads, config.gziptool)
+            r2file = run_unpigz(str(config.read2), newtmpdir, config.num_threads, config.gziptool)
         else:
-            r1file = run_unpigz(args.read1, newtmpdir, args.num_threads, args.gziptool)
+            r1file = run_unpigz(str(config.read1), newtmpdir, config.num_threads, config.gziptool)
 
-    logger.info(f"Writing output files to {args.output_path}")
-    if args.adapter_trimming is True:
-        if args.adapter_sequence.lower() == "illumina":
-            adapter = "AGATCGGAAGAGC"
-        elif args.adapter_sequence.lower() == "nextera":
-            adapter = "CTGTCTCTTATA"
-        elif args.adapter_sequence.lower() == "small-rna":
-            adapter = "ATGGAATTCTCG"
-        else:
-            adapter = args.adapter_sequence.upper()
+    logger.info(f"Writing output files to {config.output_path}")
+    # TODO: If fastp was run before, we should skip adapter trimming here.
+    if config.adapter_trimming is True:
+        output_path = Path(config.output_path)
+        r2_input = r2file if config.mode == "paired" else None
+        r1file, r2file_out = run_cutadapt(
+            r1file, r2_input, output_path, config.sample_name, config.adapter_sequence, config.mode
+        )
+        if config.mode == "paired":
+            if r2file_out is None:
+                raise ValueError("Cutadapt returned None for R2 in paired mode")
+            r2file = r2file_out
 
-        output_path = Path(args.output_path)
-        if args.mode == "single":
-            outfilename = str(output_path / f"{args.sample_name}_trimmed.fastq")
-            command = ["cutadapt", "-a", adapter, "-o", outfilename, "-O", "3", "-m", "20", r1file]
-        else:
-            outfile1 = str(output_path / f"{args.sample_name}_R1_trimmed.fastq")
-            outfile2 = str(output_path / f"{args.sample_name}_R2_trimmed.fastq")
-            command = [
-                "cutadapt",
-                "-a",
-                adapter,
-                "-A",
-                adapter,
-                "-o",
-                outfile1,
-                "-p",
-                outfile2,
-                "-O",
-                "3",
-                "-m",
-                "20",
-                r1file,
-                r2file,
-            ]
-        logger.info(f"Performing adapter trimming using cutadapt with adapter sequence {adapter}")
-        p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        _, stderr = p.communicate()
-        log_subprocess_stderr(stderr, "cutadapt")
-        p.wait()
-        if args.mode == "single":
+    output_path = Path(config.output_path)
+    if config.mode == "single":
+        outfilename = str(output_path / f"{config.sample_name}_umis_in_header.fastq")
+        nseqs = preprocess_se(r1file, outfilename, config.umi_length, config.spacer_length)
+        run_pigz(outfilename, config.num_threads, config.gziptool)
+        if removerfiles:
             Path(r1file).unlink()
-            r1file = outfilename
-        else:
-            Path(r1file).unlink()
-            Path(r2file).unlink()
-            r1file = outfile1
-            r2file = outfile2
-
-    output_path = Path(args.output_path)
-    if args.mode == "single":
-        outfilename = str(output_path / f"{args.sample_name}_umis_in_header.fastq")
-        nseqs = preprocess_se(r1file, outfilename, args.umi_length, args.spacer_length)
-        run_pigz(outfilename, args.num_threads, args.gziptool)
-        Path(r1file).unlink()
         Path(newtmpdir).rmdir()
         fastqfiles = [f"{outfilename}.gz"]
     else:
-        if args.reverse_index:
+        if config.reverse_index:
             # switch forward and reverse read
             r1filetmp = r1file
             r1file = r2file
             r2file = r1filetmp
-            outfile1 = str(output_path / f"{args.sample_name}_R2_umis_in_header.fastq")
-            outfile2 = str(output_path / f"{args.sample_name}_R1_umis_in_header.fastq")
+            outfile1 = str(output_path / f"{config.sample_name}_R2_umis_in_header.fastq")
+            outfile2 = str(output_path / f"{config.sample_name}_R1_umis_in_header.fastq")
         else:
             # r1file=args.read1
             # r2file=args.read2
-            outfile1 = str(output_path / f"{args.sample_name}_R1_umis_in_header.fastq")
-            outfile2 = str(output_path / f"{args.sample_name}_R2_umis_in_header.fastq")
-        nseqs = preprocess_pe(r1file, r2file, outfile1, outfile2, args.umi_length, args.spacer_length, args.dual_index)
-        run_pigz(outfile1, args.num_threads, args.gziptool)
-        run_pigz(outfile2, args.num_threads, args.gziptool)
+            outfile1 = str(output_path / f"{config.sample_name}_R1_umis_in_header.fastq")
+            outfile2 = str(output_path / f"{config.sample_name}_R2_umis_in_header.fastq")
+        nseqs = preprocess_pe(r1file, r2file, outfile1, outfile2, config.umi_length, config.spacer_length, config.dual_index)
+        run_pigz(outfile1, config.num_threads, config.gziptool)
+        run_pigz(outfile2, config.num_threads, config.gziptool)
         r1path = Path(r1file)
         r2path = Path(r2file)
         if removerfiles is True and r1path.is_file():
@@ -223,13 +236,3 @@ def run_preprocessing(args):
         fastqfiles = [outfile1 + ".gz", outfile2 + ".gz"]
     logger.info("Finished preprocessing")
     return (fastqfiles, nseqs)
-
-
-def main(args):
-    try:
-        args = check_args_fastq(args)  # check if combination of arguments are correct
-    except ValueError as e:
-        print(e)
-        sys.exit(1)
-    fastqfiles, nseqs = run_preprocessing(args)
-    print(nseqs)
