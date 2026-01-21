@@ -25,7 +25,14 @@ def check_args_fastq(args: Namespace) -> Namespace:
     is_pigz = is_tool("pigz")
     is_gzip = is_tool("gzip")
     is_bwa = is_tool("bwa")
-    if args.adapter_trimming:
+    # Only require cutadapt if adapter trimming is needed and fastp won't handle it
+    fastp_config = getattr(args, "fastp_config", None)
+    fastp_handles_adapters = (
+        fastp_config is not None
+        and getattr(fastp_config, "enabled", False)
+        and getattr(fastp_config, "trim_adapters", False)
+    )
+    if args.adapter_trimming and not fastp_handles_adapters:
         is_cutadapt = is_tool("cutadapt")
         if not is_cutadapt:
             raise ValueError('Cannot find program "cutadapt". Please install it and add it to the path.')
@@ -96,4 +103,3 @@ def check_args_bam(args: Namespace) -> Namespace:
     if args.regions_from_bed and not args.bed_file:
         raise ValueError("To use option regions_from_bed a bedfile needs to be supplied, using -bed option")
     return args
-

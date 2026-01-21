@@ -6,7 +6,6 @@ and QC report generation.
 """
 
 import csv
-import subprocess
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,38 +14,18 @@ from typing import Optional
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
-from umierrorcorrect.core.check_args import is_tool
 from umierrorcorrect.core.constants import HISTOGRAM_SUFFIX
 from umierrorcorrect.core.logging_config import (
     add_file_handler,
     get_log_path,
     get_logger,
-    log_subprocess_stderr,
     setup_logging,
 )
+from umierrorcorrect.models.models import FastpConfig, Sample
+from umierrorcorrect.qc import run_fastqc, run_multiqc
 
 logger = get_logger("batch")
 console = Console()
-
-
-@dataclass
-class Sample:
-    """Represents a sample with its FASTQ files."""
-
-    name: str
-    read1: Path
-    read2: Optional[Path] = None
-
-
-@dataclass
-class FilteredSample:
-    """Represents a sample after fastp filtering."""
-
-    sample: Sample
-    filtered_read1: Path
-    filtered_read2: Optional[Path] = None
-    merged_reads: Optional[Path] = None
-    fastp_json: Optional[Path] = None
 
 
 @dataclass
@@ -185,146 +164,10 @@ def parse_sample_sheet(csv_path: Path) -> list[Sample]:
                 if read2_val:
                     read2 = Path(read2_val)
 
-            # Validate files exist
-            if not read1.exists():
-                raise ValueError(f"Read1 file not found for sample {sample_name}: {read1}")
-            if read2 and not read2.exists():
-                raise ValueError(f"Read2 file not found for sample {sample_name}: {read2}")
-
+            # Sample model validates file existence automatically
             samples.append(Sample(name=sample_name, read1=read1, read2=read2))
 
     return samples
-
-
-def run_fastp(
-    sample: Sample,
-    output_dir: Path,
-    merge: bool = False,
-    phred_score: int = 20,
-    threads: int = 4,
-) -> Optional[FilteredSample]:
-    """Run fastp on a sample for quality filtering.
-
-    Args:
-        sample: Sample to filter.
-        output_dir: Directory for filtered FASTQ files.
-        merge: Whether to merge overlapping reads (paired-end only).
-        phred_score: Minimum Phred quality score.
-        threads: Number of threads for fastp.
-
-    Returns:
-        FilteredSample with paths to filtered files, or None if fastp not available.
-    """
-    if not is_tool("fastp"):
-        logger.warning("fastp not found in PATH, skipping pre-filtering")
-        return None
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Output file paths
-    filtered_r1 = output_dir / f"{sample.name}.filtered.R1.fastq.gz"
-    filtered_r2: Optional[Path] = None
-    merged_reads: Optional[Path] = None
-    fastp_json = output_dir / f"{sample.name}.fastp.json"
-    fastp_html = output_dir / f"{sample.name}.fastp.html"
-
-    cmd = [
-        "fastp",
-        "-i",
-        str(sample.read1),
-        "-o",
-        str(filtered_r1),
-        "-j",
-        str(fastp_json),
-        "-h",
-        str(fastp_html),
-        "-q",
-        str(phred_score),
-        "-w",
-        str(threads),
-    ]
-
-    if sample.read2:
-        filtered_r2 = output_dir / f"{sample.name}.filtered.R2.fastq.gz"
-        cmd.extend(["-I", str(sample.read2), "-O", str(filtered_r2)])
-
-        if merge:
-            merged_reads = output_dir / f"{sample.name}.merged.fastq.gz"
-            cmd.extend(["--merge", "--merged_out", str(merged_reads)])
-
-    logger.info(f"Running fastp on {sample.name}")
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        log_subprocess_stderr(result.stderr, "fastp")
-
-        return FilteredSample(
-            sample=sample,
-            filtered_read1=filtered_r1,
-            filtered_read2=filtered_r2,
-            merged_reads=merged_reads,
-            fastp_json=fastp_json,
-        )
-    except subprocess.CalledProcessError as e:
-        logger.error(f"fastp failed for {sample.name}: {e.stderr}")
-        return None
-
-
-def run_fastqc(files: list[Path], output_dir: Path, threads: int = 4) -> bool:
-    """Run FastQC on a list of FASTQ files.
-
-    Args:
-        files: List of FASTQ files to analyze.
-        output_dir: Output directory for FastQC reports.
-        threads: Number of threads.
-
-    Returns:
-        True if successful, False otherwise.
-    """
-    if not is_tool("fastqc"):
-        logger.warning("fastqc not found in PATH, skipping QC")
-        return False
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    cmd = ["fastqc", "-o", str(output_dir), "-t", str(threads)]
-    cmd.extend([str(f) for f in files if f.exists()])
-
-    logger.info(f"Running FastQC on {len(files)} files")
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        log_subprocess_stderr(result.stderr, "fastqc")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"FastQC failed: {e.stderr}")
-        return False
-
-
-def run_multiqc(input_dir: Path, output_dir: Path) -> bool:
-    """Run MultiQC to aggregate QC reports.
-
-    Args:
-        input_dir: Directory containing QC reports to aggregate.
-        output_dir: Output directory for MultiQC report.
-
-    Returns:
-        True if successful, False otherwise.
-    """
-    if not is_tool("multiqc"):
-        logger.warning("multiqc not found in PATH, skipping aggregation")
-        return False
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    cmd = ["multiqc", str(input_dir), "-o", str(output_dir), "-f"]
-
-    logger.info("Running MultiQC")
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        log_subprocess_stderr(result.stderr, "multiqc")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"MultiQC failed: {e.stderr}")
-        return False
 
 
 def process_sample(
@@ -340,6 +183,7 @@ def process_sample(
     reverse_index: bool = False,
     adapter_trimming: bool = False,
     remove_large_files: bool = False,
+    fastp_config: Optional[FastpConfig] = None,
 ) -> ProcessingResult:
     """Process a single sample through the UMI Error Correct pipeline.
 
@@ -356,6 +200,7 @@ def process_sample(
         reverse_index: UMI is on R2 instead of R1.
         adapter_trimming: Perform 3' adapter trimming.
         remove_large_files: Remove original FASTQ and BAM files.
+        fastp_config: Optional FastpConfig for quality filtering and adapter trimming.
 
     Returns:
         ProcessingResult with outcome of processing.
@@ -368,6 +213,7 @@ def process_sample(
     sample_output_dir.mkdir(parents=True, exist_ok=True)
 
     # Create args namespace matching the expected format
+    # TODO: Change to pydantic validation. Many args not exposed to the user here.
     args = Namespace(
         read1=str(sample.read1),
         read2=str(sample.read2) if sample.read2 else None,
@@ -399,6 +245,7 @@ def process_sample(
         params_file=None,
         output_json=False,
         tmpdir=None,
+        fastp_config=fastp_config,
     )
 
     try:
@@ -443,6 +290,7 @@ def _process_sample_wrapper(args: tuple) -> ProcessingResult:
         reverse_index,
         adapter_trimming,
         remove_large_files,
+        fastp_config,
     ) = args
 
     # Configure logging in subprocess:
@@ -467,6 +315,7 @@ def _process_sample_wrapper(args: tuple) -> ProcessingResult:
         reverse_index=reverse_index,
         adapter_trimming=adapter_trimming,
         remove_large_files=remove_large_files,
+        fastp_config=fastp_config,
     )
 
 
@@ -475,18 +324,18 @@ def batch_process(
     reference: Path,
     output_dir: Path,
     bed_file: Optional[Path] = None,
-    umi_length: int = 12,
-    spacer_length: int = 0,
+    umi_length: int = 19,
+    spacer_length: int = 16,
     threads: int = 8,
     samples_parallel: int = 2,
     edit_distance: int = 1,
     dual_index: bool = False,
     reverse_index: bool = False,
-    prefilter: Optional[str] = None,
-    merge_reads: bool = False,
+    fastp: bool = True,
+    merge_reads: bool = True,
     phred_score: int = 20,
     run_qc: bool = False,
-    adapter_trimming: bool = False,
+    adapter_trimming: bool = True,
     remove_large_files: bool = False,
 ) -> list[ProcessingResult]:
     """Process samples through the UMI Error Correct pipeline.
@@ -503,7 +352,7 @@ def batch_process(
         edit_distance: Edit distance threshold for UMI clustering.
         dual_index: Use dual indices.
         reverse_index: UMI is on R2.
-        prefilter: Pre-filtering tool ("fastp" or None).
+        fastp: Enable fastp quality filtering and adapter trimming.
         merge_reads: Merge overlapping reads with fastp.
         phred_score: Minimum Phred quality score for fastp.
         run_qc: Whether to run FastQC/MultiQC.
@@ -522,43 +371,16 @@ def batch_process(
     # Calculate threads per sample
     threads_per_sample = max(1, threads // samples_parallel)
 
-    # Pre-filtering with fastp
-    samples_to_process = samples
-    if prefilter and prefilter.lower() == "fastp":
-        filtered_dir = output_dir / "filtered_fastqs"
-        filtered_samples = []
-
-        console.print(f"[bold blue]Pre-filtering {len(samples)} samples with fastp...[/bold blue]")
-
-        for sample in samples:
-            filtered = run_fastp(
-                sample,
-                filtered_dir,
-                merge=merge_reads,
-                phred_score=phred_score,
-                threads=min(threads_per_sample, 4),
-            )
-            if filtered:
-                # Create new sample with filtered reads
-                if filtered.merged_reads and filtered.merged_reads.exists():
-                    # Use merged reads as R1, no R2
-                    new_sample = Sample(
-                        name=sample.name,
-                        read1=filtered.merged_reads,
-                        read2=None,
-                    )
-                else:
-                    new_sample = Sample(
-                        name=sample.name,
-                        read1=filtered.filtered_read1,
-                        read2=filtered.filtered_read2,
-                    )
-                filtered_samples.append(new_sample)
-            else:
-                # Use original sample if filtering failed
-                filtered_samples.append(sample)
-
-        samples_to_process = filtered_samples
+    # Create FastpConfig if fastp is enabled (will be passed to run_preprocessing)
+    fastp_config: Optional[FastpConfig] = None
+    if fastp:
+        fastp_config = FastpConfig(
+            enabled=True,
+            phred_score=phred_score,
+            merge_reads=merge_reads,
+            trim_adapters=adapter_trimming,
+            threads=threads_per_sample,
+        )
 
     # Run FastQC if requested
     if run_qc:
@@ -576,9 +398,7 @@ def batch_process(
     # Process samples in parallel
     results: list[ProcessingResult] = []
 
-    console.print(
-        f"[bold blue]Processing {len(samples_to_process)} samples ({samples_parallel} in parallel)...[/bold blue]"
-    )
+    console.print(f"[bold blue]Processing {len(samples)} samples ({samples_parallel} in parallel)...[/bold blue]")
 
     # Prepare arguments for each sample
     process_args = [
@@ -595,8 +415,9 @@ def batch_process(
             reverse_index,
             adapter_trimming,
             remove_large_files,
+            fastp_config,
         )
-        for sample in samples_to_process
+        for sample in samples
     ]
 
     with Progress(
@@ -606,7 +427,7 @@ def batch_process(
         TaskProgressColumn(),
         console=console,
     ) as progress:
-        task = progress.add_task("[cyan]Processing samples...", total=len(samples_to_process))
+        task = progress.add_task("[cyan]Processing samples...", total=len(samples))
 
         with ProcessPoolExecutor(max_workers=samples_parallel) as executor:
             future_to_sample = {executor.submit(_process_sample_wrapper, args): args[0].name for args in process_args}

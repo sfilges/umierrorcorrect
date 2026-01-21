@@ -5,15 +5,16 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-Pipeline for analyzing barcoded amplicon sequencing data with Unique Molecular Identifiers (UMI).
+Pipeline for analyzing barcoded amplicon sequencing data with Unique Molecular Identifiers (UMI). This is essentially a complete overhaul of the original [UMIErrorCorrect](https://github.com/stahlberggroup/umierrorcorrect) published in [Clinical Chemistry](https://doi.org/10.1093/clinchem/hvac136).
 
-## Reference
+The following major changes have been made:
 
-UMIErrorCorrect has been published in Clinical Chemistry:
-
-> Osterlund T., Filges S., Johansson G., Stahlberg A. *UMIErrorCorrect and UMIAnalyzer: Software for Consensus Read Generation, Error Correction, and Visualization Using Unique Molecular Identifiers*, Clinical Chemistry, 2022, hvac136
-
-[Link to the paper](https://doi.org/10.1093/clinchem/hvac136)
+- Added fastp as the default preprocessor including read trimming, quality filtering, merging and error correction of paired-end reads etc.
+- Included quality control with fastqc and report merging with multiqc
+- Added batch processing of fastq files and samplesheet support
+- A complete refactoring of the code base, including removal of legacy and ununsed code, modernization of the codebase, and improved documentation
+- A new command line interface using typer + rich
+- Added a comprehensive testing suite of >100 tests
 
 ## Installation
 
@@ -158,3 +159,7 @@ umierrorcorrect filter-cons --help
 
 - [Tutorial](https://github.com/stahlberggroup/umierrorcorrect/wiki/Tutorial)
 - [UMI definition options](https://github.com/stahlberggroup/umierrorcorrect/wiki/UMI-definition-options)
+
+## Reference
+
+> Osterlund T., Filges S., Johansson G., Stahlberg A. *UMIErrorCorrect and UMIAnalyzer: Software for Consensus Read Generation, Error Correction, and Visualization Using Unique Molecular Identifiers*, Clinical Chemistry, 2022, hvac136

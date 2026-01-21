@@ -1,7 +1,5 @@
 """Unit tests for umierrorcorrect.batch module."""
 
-from pathlib import Path
-
 import pytest
 from umierrorcorrect.batch import (
     Sample,
@@ -12,28 +10,56 @@ from umierrorcorrect.core.check_args import is_tool
 
 
 class TestSampleDataclass:
-    """Tests for the Sample dataclass."""
+    """Tests for the Sample Pydantic model."""
 
-    def test_sample_creation_paired(self):
-        """Test creating a paired-end sample."""
+    def test_sample_creation_paired(self, temp_output_dir):
+        """Test creating a paired-end sample with file validation."""
+        r1_path = temp_output_dir / "R1.fastq.gz"
+        r2_path = temp_output_dir / "R2.fastq.gz"
+        r1_path.touch()
+        r2_path.touch()
+
         sample = Sample(
             name="test_sample",
-            read1=Path("/path/to/R1.fastq.gz"),
-            read2=Path("/path/to/R2.fastq.gz"),
+            read1=r1_path,
+            read2=r2_path,
         )
         assert sample.name == "test_sample"
-        assert sample.read1 == Path("/path/to/R1.fastq.gz")
-        assert sample.read2 == Path("/path/to/R2.fastq.gz")
+        assert sample.read1 == r1_path
+        assert sample.read2 == r2_path
 
-    def test_sample_creation_single(self):
-        """Test creating a single-end sample."""
+    def test_sample_creation_single(self, temp_output_dir):
+        """Test creating a single-end sample with file validation."""
+        r1_path = temp_output_dir / "R1.fastq.gz"
+        r1_path.touch()
+
         sample = Sample(
             name="test_sample",
-            read1=Path("/path/to/R1.fastq.gz"),
+            read1=r1_path,
         )
         assert sample.name == "test_sample"
-        assert sample.read1 == Path("/path/to/R1.fastq.gz")
+        assert sample.read1 == r1_path
         assert sample.read2 is None
+
+    def test_sample_validation_missing_read1(self, temp_output_dir):
+        """Test that Sample raises error for non-existent read1."""
+        with pytest.raises(ValueError, match="Read1 file not found"):
+            Sample(
+                name="test_sample",
+                read1=temp_output_dir / "nonexistent.fastq.gz",
+            )
+
+    def test_sample_validation_missing_read2(self, temp_output_dir):
+        """Test that Sample raises error for non-existent read2."""
+        r1_path = temp_output_dir / "R1.fastq.gz"
+        r1_path.touch()
+
+        with pytest.raises(ValueError, match="Read2 file not found"):
+            Sample(
+                name="test_sample",
+                read1=r1_path,
+                read2=temp_output_dir / "nonexistent.fastq.gz",
+            )
 
 
 class TestDiscoverSamples:

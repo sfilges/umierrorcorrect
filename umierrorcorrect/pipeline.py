@@ -66,8 +66,14 @@ def run_pipeline(args):
     args = check_args_fastq(args)
     check_bwa_index(args.reference_file)
 
-    from umierrorcorrect.models.models import PreprocessConfig
+    # -----------------------------------------
     # Run preprocessing
+    # -----------------------------------------
+    from umierrorcorrect.models.models import PreprocessConfig
+
+    # Get fastp config from args (may be None if not using batch mode or fastp disabled)
+    fastp_config = getattr(args, "fastp_config", None)
+
     preprocess_config = PreprocessConfig(
         read1=Path(args.read1),
         read2=Path(args.read2) if args.read2 else None,
@@ -82,26 +88,35 @@ def run_pipeline(args):
         adapter_sequence=getattr(args, "adapter_sequence", "illumina"),
         force=getattr(args, "force", False),
         tmpdir=getattr(args, "tmpdir", None),
+        fastp_config=fastp_config,
     )
     fastq_files, nseqs = run_preprocessing(preprocess_config)
     logger.info(f"Files: {' '.join(fastq_files)}, number of reads: {nseqs}")
 
+    # -----------------------------------------
     # Run mapping
+    # -----------------------------------------
     bam_file = run_mapping(
         args.num_threads, args.reference_file, fastq_files, args.output_path, args.sample_name, args.remove_large_files
     )
     args.bam_file = bam_file
     args.regions_from_tag = False
 
+    # -----------------------------------------
     # Run UMI error correction
+    # -----------------------------------------
     run_umi_errorcorrect(args)
     output_path = Path(args.output_path)
     cons_bam = str(output_path / f"{args.sample_name}_consensus_reads.bam")
 
+    # -----------------------------------------
     # Run consensus statistics
+    # -----------------------------------------
     run_get_consensus_statistics(args.output_path, cons_bam, None, False, args.sample_name)
     args.cons_file = None
 
+    # -----------------------------------------
     # Run variant calling
+    # -----------------------------------------
     run_call_variants(args)
     logger.info("Finished UMI Error Correct")

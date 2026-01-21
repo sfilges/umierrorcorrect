@@ -250,10 +250,7 @@ def run_get_consensus_statistics(output_path, consensus_filename, stat_filename,
             for size in sorted(hist_counts):
                 g.write(str(size) + "\t" + str(hist_counts[size]) + "\n")
 
-    # print(hist)
-    # plot_histogram(hist,output_path+'/histogram.png')
     logger.info("Finished consensus statistics")
-    # write_report()
 
 
 def main(output_path, consensus_filename, stat_filename, output_raw, samplename):

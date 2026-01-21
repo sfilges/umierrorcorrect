@@ -58,12 +58,17 @@ def preprocess(
     threads: Annotated[int, typer.Option("-t", "--threads", help="Number of threads.")] = 1,
     dual_index: Annotated[bool, typer.Option("--dual-index", help="Use dual indices.")] = False,
     reverse_index: Annotated[bool, typer.Option("--reverse-index", help="UMI is on R2.")] = False,
-    adapter_trimming: Annotated[bool, typer.Option("--trim", help="Perform 3' adapter trimming.")] = False,
+    adapter_trimming: Annotated[bool, typer.Option("--trim/--no-trim", help="Perform 3' adapter trimming.")] = True,
     adapter_sequence: Annotated[str, typer.Option("-a", "--adapter", help="Adapter sequence to trim.")] = "illumina",
     force: Annotated[bool, typer.Option("-f", "--force", help="Overwrite existing files.")] = False,
+    fastp: Annotated[bool, typer.Option("--fastp/--no-fastp", help="Enable fastp quality filtering.")] = True,
+    fastp_phred: Annotated[int, typer.Option("--fastp-phred", "-q", help="Minimum Phred score for fastp.")] = 20,
+    fastp_merge: Annotated[
+        bool, typer.Option("--fastp-merge/--no-fastp-merge", help="Merge overlapping reads with fastp.")
+    ] = True,
 ) -> None:
     """Preprocess FASTQ files by extracting UMIs and adding them to read headers."""
-    from umierrorcorrect.models.models import PreprocessConfig
+    from umierrorcorrect.models.models import FastpConfig, PreprocessConfig
     from umierrorcorrect.preprocess import run_preprocessing
 
     # Set up file logging
@@ -72,6 +77,18 @@ def preprocess(
     add_file_handler(log_path)
     logger.info(f"Logging to {log_path}")
 
+    # Create FastpConfig if fastp is enabled
+    fastp_config: Optional[FastpConfig] = None
+    if fastp:
+        fastp_config = FastpConfig(
+            enabled=True,
+            phred_score=fastp_phred,
+            merge_reads=fastp_merge,
+            trim_adapters=adapter_trimming,
+            threads=threads,
+        )
+
+    # Create unified PreprocessConfig - fastp handling is now internal
     config = PreprocessConfig(
         read1=read1,
         read2=read2,
@@ -86,6 +103,7 @@ def preprocess(
         adapter_sequence=adapter_sequence,
         force=force,
         tmpdir=None,
+        fastp_config=fastp_config,
     )
 
     logger.info("Starting preprocessing")
@@ -349,10 +367,11 @@ def batch(
     bed_file: Annotated[
         Optional[Path], typer.Option("-bed", "--bed-file", help="Path to BED file defining targeted regions.")
     ] = None,
-    umi_length: Annotated[int, typer.Option("-ul", "--umi-length", help="Length of UMI sequence.")] = 12,
+    umi_length: Annotated[int, typer.Option("-ul", "--umi-length", help="Length of UMI sequence.")] = 19,
     spacer_length: Annotated[
         int, typer.Option("-sl", "--spacer-length", help="Length of spacer between UMI and read.")
-    ] = 0,
+    ] = 16,
+    # TODO: Consider removing the user provided sample name option. Just use the basename of the input file.
     sample_name: Annotated[
         Optional[str], typer.Option("-s", "--sample-name", help="Sample name (for single-sample mode).")
     ] = None,
@@ -360,20 +379,27 @@ def batch(
     samples_parallel: Annotated[
         int, typer.Option("-j", "--jobs", help="Number of samples to process in parallel.")
     ] = 2,
-    prefilter: Annotated[Optional[str], typer.Option("--prefilter", help="Pre-filtering tool to use (fastp).")] = None,
-    merge_reads: Annotated[
-        bool, typer.Option("--merge-reads", help="Merge overlapping reads with fastp (paired-end only).")
-    ] = False,
+    adapter_trimming: Annotated[
+        bool,
+        typer.Option(
+            "--trim-adapters/--no-trim-adapters",
+            help="Performs adapter trimming with fastp if used, otherwise with cutadapt.",
+        ),
+    ] = True,
+    fastp: Annotated[bool, typer.Option("--fastp/--no-fastp", help="Enable fastp quality filtering.")] = True,
+    fastp_merge_reads: Annotated[
+        bool,
+        typer.Option("--fastp-merge/--no-fastp-merge", help="Merge overlapping reads with fastp (paired-end only)."),
+    ] = True,
+    qc: Annotated[bool, typer.Option("--qc/--no-qc", help="Generate FastQC and MultiQC reports.")] = True,
     phred_score: Annotated[
         int, typer.Option("-q", "--phred-score", help="Minimum Phred quality score for fastp filtering.")
     ] = 20,
-    qc: Annotated[bool, typer.Option("--qc", help="Generate FastQC and MultiQC reports.")] = False,
     edit_distance: Annotated[
         int, typer.Option("-d", "--edit-distance", help="Edit distance threshold for UMI clustering.")
     ] = 1,
     dual_index: Annotated[bool, typer.Option("--dual-index", help="Use dual indices (UMIs on R1 and R2).")] = False,
     reverse_index: Annotated[bool, typer.Option("--reverse-index", help="UMI is on R2 instead of R1.")] = False,
-    adapter_trimming: Annotated[bool, typer.Option("--trim", help="Perform 3' adapter trimming.")] = False,
     remove_large_files: Annotated[bool, typer.Option("--remove", help="Remove original FASTQ and BAM files.")] = False,
 ) -> None:
     """Run the UMI Error Correct pipeline.
@@ -388,22 +414,24 @@ def batch(
 
     Examples:
 
-        # Single sample mode
-        umierrorcorrect batch -r1 sample_R1.fastq.gz -r genome.fa -o results/ -ul 12
+        # Single sample mode with single-end reads (r1) with fastp and qc enabled
+        umierrorcorrect batch -r1 sample_R1.fastq.gz -r genome.fa -o results/
 
-        # With paired-end reads
-        umierrorcorrect batch -r1 sample_R1.fastq.gz -r2 sample_R2.fastq.gz -r genome.fa -o results/
+        # Single sample mode with paired-end reads, without fastp (cutadapt handles adapter trimming)
+        # and without qc (equivalent to the original umierrorcorrect)
+        umierrorcorrect batch -r1 sample_R1.fastq.gz -r2 sample_R2.fastq.gz -r genome.fa -o results/ --no-fastp --no-qc
 
-        # Process all FASTQ files in a directory
-        umierrorcorrect batch -i /path/to/fastqs -r genome.fa -o results/ -ul 12
+        # Batch process all FASTQ files in a directory
+        umierrorcorrect batch -i /path/to/fastqs -r genome.fa -o results/
 
-        # With sample sheet
+        # Batch process with sample sheet
         umierrorcorrect batch --sample-sheet samples.csv -r genome.fa -o results/
 
-        # With pre-filtering and QC
-        umierrorcorrect batch -i /path/to/fastqs -r genome.fa -o results/ --prefilter fastp --qc -t 16
+        # With pre-filtering (fastp is enabled by default) but without qc and non-standard UMI configuration
+        umierrorcorrect batch -i /path/to/fastqs -r genome.fa -o results/ --no-qc -ul 12 -sl 8
     """
-    from umierrorcorrect.batch import Sample, batch_process, discover_samples, parse_sample_sheet
+    from umierrorcorrect.batch import batch_process, discover_samples, parse_sample_sheet
+    from umierrorcorrect.models.models import Sample
 
     # Validate input options - exactly one input mode must be provided
     input_modes = sum([read1 is not None, input_dir is not None, sample_sheet is not None])
@@ -419,7 +447,7 @@ def batch(
         console.print("[red]Error:[/red] --read2 can only be used with --read1.")
         raise typer.Exit(1)
 
-    # Discover or parse samples based on input mode
+    # Discover or parse samples based on input mode. Returns list of Sample objects.
     if read1 is not None:
         # Single-sample mode
         if not read1.exists():
@@ -467,13 +495,9 @@ def batch(
         raise typer.Exit(1)
 
     # Validate reference
+    # TODO: Validate reference before sample search?
     if not reference.exists():
         console.print(f"[red]Error:[/red] Reference file not found: {reference}")
-        raise typer.Exit(1)
-
-    # Validate prefilter option
-    if prefilter and prefilter.lower() not in ("fastp",):
-        console.print(f"[red]Error:[/red] Unknown prefilter tool: {prefilter}. Supported: fastp")
         raise typer.Exit(1)
 
     # Set up file logging
@@ -490,25 +514,42 @@ def batch(
     else:
         mode_str = "Sample Sheet"
 
+    # Print summary
     console.print("[bold green]UMI Error Correct[/bold green]")
     console.print(f"  Mode: {mode_str}")
     console.print(f"  Samples: {len(samples)}")
+
+    if mode_str == "Single Sample":
+        console.print(f"  Read1: {read1}")
+        console.print(f"  Read2: {read2}")
+    elif mode_str == "Directory":
+        console.print(f"  Input directory: {input_dir}")
+    else:
+        console.print(f"  Sample sheet: {sample_sheet}")
+
     console.print(f"  Reference: {reference}")
     console.print(f"  Output: {output_dir}")
     if len(samples) > 1:
         console.print(f"  Threads: {threads} ({samples_parallel} samples in parallel)")
     else:
         console.print(f"  Threads: {threads}")
-    if prefilter:
-        console.print(f"  Pre-filter: {prefilter}")
-    if adapter_trimming:
-        console.print("  Adapter trimming: enabled")
+    if fastp:
+        console.print("  Preprocessing: fastp")
+    if fastp_merge_reads and fastp:
+        console.print("  Merge reads: enabled")
+    if adapter_trimming and fastp:
+        console.print("  Adapter trimming: fastp")
+    if adapter_trimming and not fastp:
+        console.print("  Adapter trimming: cutadapt")
     if qc:
         console.print("  QC reports: enabled")
+    console.print(f"  UMI length: {umi_length}")
+    console.print(f"  Spacer length: {spacer_length}")
     console.print()
 
     logger.info(f"Starting processing of {len(samples)} sample(s)")
 
+    # Run batch processing
     results = batch_process(
         samples=samples,
         reference=reference,
@@ -521,8 +562,8 @@ def batch(
         edit_distance=edit_distance,
         dual_index=dual_index,
         reverse_index=reverse_index,
-        prefilter=prefilter,
-        merge_reads=merge_reads,
+        fastp=fastp,
+        merge_reads=fastp_merge_reads,
         phred_score=phred_score,
         run_qc=qc,
         adapter_trimming=adapter_trimming,

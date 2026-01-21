@@ -77,6 +77,7 @@ def get_sample_name_from_cons(cons_name: str) -> str:
     sample_name = sample_name.replace("_cons.tsv", "")
     return sample_name
 
+
 # TODO: This is only used for the variant calling pipeline. Maybe the variant calling pipeline should be refactored in the same module?
 def parse_cons_file(filename: str, fsize: int = 3, include_position: bool = False) -> tuple:
     """

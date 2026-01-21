@@ -15,6 +15,309 @@ This document outlines a comprehensive plan to modernize the UMIErrorCorrect cod
 - Use `Path` instead of `os` for file handling
 - Use type hints
 
+---
+
+## Pipeline Flow Diagrams
+
+The preprocessing pipeline has two major paths depending on whether fastp is enabled (default) or disabled.
+
+### Overview: Complete Pipeline
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         UMI Error Correct Pipeline                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Input: FASTQ R1 (+ R2 for paired-end)
+                    │
+                    ▼
+        ┌───────────────────────┐
+        │   PREPROCESSING       │ ◄── See detailed diagrams below
+        │   (fastp or cutadapt) │
+        └───────────────────────┘
+                    │
+                    ▼
+        ┌───────────────────────┐
+        │   BWA MAPPING         │
+        │   (run_mapping)       │
+        └───────────────────────┘
+                    │
+                    ▼
+        ┌───────────────────────┐
+        │   UMI ERROR CORRECT   │
+        │   - UMI clustering    │
+        │   - Consensus gen     │
+        └───────────────────────┘
+                    │
+                    ▼
+        ┌───────────────────────┐
+        │   CONSENSUS STATS     │
+        └───────────────────────┘
+                    │
+                    ▼
+        ┌───────────────────────┐
+        │   VARIANT CALLING     │
+        └───────────────────────┘
+                    │
+                    ▼
+Output: VCF, consensus BAM, statistics
+```
+
+### Path A: With fastp (Default: `--fastp`)
+
+This is the recommended path. Fastp handles quality filtering, adapter trimming, and optional read merging in a single pass.
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PREPROCESSING WITH FASTP (Default)                       │
+│                                                                             │
+│  CLI: umierrorcorrect batch -r1 R1.fq.gz -r2 R2.fq.gz -r ref.fa -o out/    │
+│       (--fastp and --trim-adapters are ON by default)                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    FASTQ R1 ─────┐
+                  │
+    FASTQ R2 ─────┼──────────────────────────────────────────────────────────┐
+                  │                                                          │
+                  ▼                                                          │
+    ┌─────────────────────────────────────┐                                  │
+    │           FASTP                      │                                  │
+    │  ┌────────────────────────────────┐ │                                  │
+    │  │ • Quality filtering (Q20)      │ │                                  │
+    │  │ • Auto-detect adapters         │ │                                  │
+    │  │ • Trim adapters (if --trim)    │ │                                  │
+    │  │ • Merge reads (if --fastp-merge)│ │                                  │
+    │  └────────────────────────────────┘ │                                  │
+    │                                      │                                  │
+    │  Output:                             │                                  │
+    │  • filtered_fastqs/*.filtered.R1.fq │                                  │
+    │  • filtered_fastqs/*.filtered.R2.fq │                                  │
+    │  • filtered_fastqs/*.merged.fq (opt)│                                  │
+    │  • fastp.json (QC report)           │                                  │
+    │  • fastp.html (QC report)           │                                  │
+    └─────────────────────────────────────┘                                  │
+                  │                                                          │
+                  │  fastp_handled_adapters = True                           │
+                  │  (cutadapt is SKIPPED)                                   │
+                  ▼                                                          │
+    ┌─────────────────────────────────────┐                                  │
+    │       UMI EXTRACTION                 │                                  │
+    │  ┌────────────────────────────────┐ │                                  │
+    │  │ • Extract UMI from read start  │ │                                  │
+    │  │ • Add UMI to read header       │ │                                  │
+    │  │ • Trim UMI + spacer from read  │ │                                  │
+    │  └────────────────────────────────┘ │                                  │
+    │                                      │                                  │
+    │  Output:                             │                                  │
+    │  • *_R1_umis_in_header.fastq.gz     │                                  │
+    │  • *_R2_umis_in_header.fastq.gz     │                                  │
+    └─────────────────────────────────────┘                                  │
+                  │                                                          │
+                  ▼                                                          │
+         Continue to BWA Mapping ─────────────────────────────────────────────┘
+```
+
+**Key flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--fastp` | ON | Enable fastp preprocessing |
+| `--trim-adapters` | ON | Trim adapters (fastp handles this) |
+| `--fastp-merge` | ON | Merge overlapping paired-end reads |
+| `-q/--phred-score` | 20 | Minimum quality score for fastp |
+
+### Path B: Without fastp (`--no-fastp`)
+
+This path uses cutadapt for adapter trimming only. No quality filtering or read merging.
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   PREPROCESSING WITHOUT FASTP                               │
+│                                                                             │
+│  CLI: umierrorcorrect batch --no-fastp -r1 R1.fq.gz -r2 R2.fq.gz ...       │
+│       (cutadapt handles adapter trimming if --trim-adapters is ON)          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    FASTQ R1 ─────┐
+                  │
+    FASTQ R2 ─────┼──────────────────────────────────────────────────────────┐
+                  │                                                          │
+                  │  (No fastp - raw reads passed directly)                  │
+                  │  fastp_handled_adapters = False                          │
+                  ▼                                                          │
+    ┌─────────────────────────────────────┐                                  │
+    │       CUTADAPT (if --trim-adapters) │                                  │
+    │  ┌────────────────────────────────┐ │                                  │
+    │  │ • Trim 3' adapters             │ │                                  │
+    │  │ • Illumina/Nextera/custom      │ │                                  │
+    │  │ • Min overlap: 3bp             │ │                                  │
+    │  │ • Min length: 20bp             │ │                                  │
+    │  └────────────────────────────────┘ │                                  │
+    │                                      │                                  │
+    │  Output:                             │                                  │
+    │  • *_R1_trimmed.fastq               │                                  │
+    │  • *_R2_trimmed.fastq               │                                  │
+    └─────────────────────────────────────┘                                  │
+                  │                                                          │
+                  │  (Skip if --no-trim-adapters)                            │
+                  ▼                                                          │
+    ┌─────────────────────────────────────┐                                  │
+    │       UMI EXTRACTION                 │                                  │
+    │  ┌────────────────────────────────┐ │                                  │
+    │  │ • Extract UMI from read start  │ │                                  │
+    │  │ • Add UMI to read header       │ │                                  │
+    │  │ • Trim UMI + spacer from read  │ │                                  │
+    │  └────────────────────────────────┘ │                                  │
+    │                                      │                                  │
+    │  Output:                             │                                  │
+    │  • *_R1_umis_in_header.fastq.gz     │                                  │
+    │  • *_R2_umis_in_header.fastq.gz     │                                  │
+    └─────────────────────────────────────┘                                  │
+                  │                                                          │
+                  ▼                                                          │
+         Continue to BWA Mapping ─────────────────────────────────────────────┘
+```
+
+**Key flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--no-fastp` | OFF | Disable fastp preprocessing |
+| `--trim-adapters` | ON | Trim adapters (cutadapt handles this) |
+| `-a/--adapter` | illumina | Adapter sequence (illumina/nextera/custom) |
+
+### Decision Flow: Adapter Trimming Logic
+
+```text
+                        ┌─────────────────┐
+                        │ adapter_trimming │
+                        │    enabled?      │
+                        └────────┬────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+                   YES                        NO
+                    │                         │
+                    ▼                         ▼
+         ┌──────────────────┐       ┌──────────────────┐
+         │  fastp enabled?  │       │  No trimming     │
+         └────────┬─────────┘       │  (raw reads)     │
+                  │                 └──────────────────┘
+         ┌────────┴────────┐
+         │                 │
+        YES                NO
+         │                 │
+         ▼                 ▼
+┌─────────────────┐ ┌─────────────────┐
+│ fastp handles   │ │ cutadapt        │
+│ adapter trimming│ │ handles         │
+│                 │ │ adapter trimming│
+│ cutadapt        │ │                 │
+│ is SKIPPED      │ │ (requires       │
+│                 │ │  cutadapt in    │
+│ fastp_handled_  │ │  PATH)          │
+│ adapters = True │ │                 │
+└─────────────────┘ └─────────────────┘
+```
+
+### Batch Processing Flow
+
+When processing multiple samples, the pipeline uses parallel execution:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         BATCH PROCESSING FLOW                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    Input: Directory of FASTQ files OR Sample sheet
+                        │
+                        ▼
+            ┌───────────────────────┐
+            │   DISCOVER SAMPLES    │
+            │   (or parse sheet)    │
+            └───────────────────────┘
+                        │
+                        ▼
+    ┌───────────────────────────────────────────────────────────────┐
+    │                     FASTP PRE-FILTERING                        │
+    │                     (Sequential per sample)                    │
+    │  ┌─────────┐  ┌─────────┐  ┌─────────┐                        │
+    │  │Sample 1 │  │Sample 2 │  │Sample 3 │  ...                   │
+    │  │ fastp   │  │ fastp   │  │ fastp   │                        │
+    │  └─────────┘  └─────────┘  └─────────┘                        │
+    │         │           │           │                              │
+    │         └───────────┴───────────┘                              │
+    │                     │                                          │
+    │         fastp_handled_adapters = True                          │
+    └───────────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+    ┌───────────────────────────────────────────────────────────────┐
+    │              PARALLEL SAMPLE PROCESSING                        │
+    │              (ProcessPoolExecutor)                             │
+    │                                                                │
+    │  ┌─────────────────────────────────────────────────────────┐  │
+    │  │ Worker 1                    Worker 2                     │  │
+    │  │ ┌─────────────────┐        ┌─────────────────┐          │  │
+    │  │ │ Sample 1        │        │ Sample 2        │          │  │
+    │  │ │ • UMI extract   │        │ • UMI extract   │          │  │
+    │  │ │ • BWA mapping   │        │ • BWA mapping   │          │  │
+    │  │ │ • UMI correct   │        │ • UMI correct   │          │  │
+    │  │ │ • Statistics    │        │ • Statistics    │          │  │
+    │  │ │ • Variants      │        │ • Variants      │          │  │
+    │  │ └─────────────────┘        └─────────────────┘          │  │
+    │  │                                                          │  │
+    │  │ (cutadapt SKIPPED - fastp already trimmed adapters)     │  │
+    │  └─────────────────────────────────────────────────────────┘  │
+    │                                                                │
+    │  Threads per sample = total_threads / samples_parallel        │
+    └───────────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+            ┌───────────────────────┐
+            │   QC REPORTS          │
+            │   (FastQC + MultiQC)  │
+            └───────────────────────┘
+                        │
+                        ▼
+            ┌───────────────────────┐
+            │   BATCH SUMMARY       │
+            │   (batch_summary.tsv) │
+            └───────────────────────┘
+```
+
+### Output Directory Structure
+
+```text
+output_dir/
+├── filtered_fastqs/                    # fastp output (if enabled)
+│   ├── sample1.filtered.R1.fastq.gz
+│   ├── sample1.filtered.R2.fastq.gz
+│   ├── sample1.merged.fastq.gz         # if --fastp-merge
+│   ├── sample1.fastp.json
+│   ├── sample1.fastp.html
+│   └── ...
+├── samples/
+│   ├── sample1/
+│   │   ├── sample1_R1_umis_in_header.fastq.gz
+│   │   ├── sample1_R2_umis_in_header.fastq.gz
+│   │   ├── sample1.bam
+│   │   ├── sample1_consensus_reads.bam
+│   │   ├── sample1.cons
+│   │   ├── sample1.vcf
+│   │   ├── sample1.hist
+│   │   └── simsen-cli_*.log
+│   └── sample2/
+│       └── ...
+├── qc_reports/                         # if --qc
+│   ├── fastqc/
+│   └── multiqc_report.html
+├── batch_summary.tsv
+└── simsen-cli_*.log
+```
+
+---
+
 ## Phase 1: Modern Build System and Tooling (Foundation)
 
 ### 1.1 Create pyproject.toml with Hatchling

@@ -16,13 +16,91 @@ import datetime
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Tuple
+from typing import Optional
 
+from umierrorcorrect.core.check_args import is_tool
 from umierrorcorrect.core.logging_config import get_logger, log_subprocess_stderr
 from umierrorcorrect.core.read_fastq_records import read_fastq, read_fastq_paired_end
-from umierrorcorrect.models.models import PreprocessConfig
+from umierrorcorrect.models.models import FastpConfig, FastpResult, PreprocessConfig
 
 logger = get_logger(__name__)
+
+
+def run_fastp(
+    read1: Path,
+    read2: Optional[Path],
+    output_dir: Path,
+    sample_name: str,
+    config: FastpConfig,
+) -> Optional[FastpResult]:
+    """Run fastp on FASTQ files for quality filtering.
+
+    Args:
+        read1: Path to first FASTQ file (R1).
+        read2: Path to second FASTQ file (R2), or None for single-end.
+        output_dir: Directory for filtered FASTQ files.
+        sample_name: Sample name for output file naming.
+        config: FastpConfig with filtering options.
+
+    Returns:
+        FastpResult with paths to filtered files, or None if fastp not available.
+    """
+    if not is_tool("fastp"):
+        logger.warning("fastp not found in PATH, skipping pre-filtering")
+        return None
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Output file paths
+    filtered_r1 = output_dir / f"{sample_name}.filtered.R1.fastq.gz"
+    filtered_r2: Optional[Path] = None
+    merged_reads: Optional[Path] = None
+    fastp_json = output_dir / f"{sample_name}.fastp.json"
+    fastp_html = output_dir / f"{sample_name}.fastp.html"
+
+    cmd = [
+        "fastp",
+        "-i",
+        str(read1),
+        "-o",
+        str(filtered_r1),
+        "-j",
+        str(fastp_json),
+        "-h",
+        str(fastp_html),
+        "-q",
+        str(config.phred_score),
+        "-w",
+        str(config.threads),
+    ]
+
+    # Add adapter trimming if enabled
+    if config.trim_adapters:
+        cmd.append("--detect_adapter_for_pe" if read2 else "--detect_adapter")
+
+    if read2:
+        filtered_r2 = output_dir / f"{sample_name}.filtered.R2.fastq.gz"
+        cmd.extend(["-I", str(read2), "-O", str(filtered_r2)])
+
+        if config.merge_reads:
+            merged_reads = output_dir / f"{sample_name}.merged.fastq.gz"
+            cmd.extend(["--merge", "--merged_out", str(merged_reads)])
+
+    logger.info(f"Running fastp on {sample_name}")
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        log_subprocess_stderr(result.stderr, "fastp")
+
+        return FastpResult(
+            filtered_read1=filtered_r1,
+            filtered_read2=filtered_r2,
+            merged_reads=merged_reads,
+            fastp_json=fastp_json,
+            fastp_html=fastp_html,
+        )
+    except subprocess.CalledProcessError as e:
+        logger.error(f"fastp failed for {sample_name}: {e.stderr}")
+        return None
 
 
 def generate_random_dir(tmpdir: str) -> str:
@@ -67,7 +145,7 @@ def run_cutadapt(
     sample_name: str,
     adapter_sequence: str,
     mode: str,
-) -> Tuple[str, str | None]:
+) -> tuple[str, str | None]:
     """Run cutadapt to trim adapters."""
     if adapter_sequence.lower() == "illumina":
         adapter = "AGATCGGAAGAGC"
@@ -161,48 +239,101 @@ def preprocess_pe(r1file, r2file, outfile1, outfile2, barcode_length, spacer_len
     return 2 * nseqs
 
 
-def run_preprocessing(config: PreprocessConfig) -> Tuple[list[str], int]:
-    """Start preprocessing."""
+def run_preprocessing(config: PreprocessConfig) -> tuple[list[str], int]:
+    """Start preprocessing.
+
+    Handles the complete preprocessing workflow:
+    1. Optionally runs fastp for quality filtering and adapter trimming
+    2. Performs UMI extraction (moving UMI from read to header)
+    3. Conditionally runs cutadapt (only if adapter_trimming=True AND fastp didn't handle adapters)
+
+    Args:
+        config: PreprocessConfig with input/output paths, fastp settings, and options.
+
+    Returns:
+        Tuple of (list of output FASTQ file paths, number of sequences processed).
+    """
     logger.info(f"Start preprocessing of sample {config.sample_name}")
 
+    # Track inputs - may be modified by fastp
+    input_read1 = config.read1
+    input_read2 = config.read2
+    fastp_trimmed_adapters = False
+
+    # Step 1: Optional fastp preprocessing
+    if config.fastp_config is not None and config.fastp_config.enabled:
+        fastp_output_dir = config.output_path / "fastp_filtered"
+
+        fastp_result = run_fastp(
+            read1=config.read1,
+            read2=config.read2,
+            output_dir=fastp_output_dir,
+            sample_name=config.sample_name,
+            config=config.fastp_config,
+        )
+
+        if fastp_result is not None:
+            # Handle merged reads case (paired-end with merge enabled)
+            if fastp_result.merged_reads and fastp_result.merged_reads.exists():
+                input_read1 = fastp_result.merged_reads
+                input_read2 = None
+                logger.info(f"Using merged reads from fastp: {input_read1}")
+            else:
+                input_read1 = fastp_result.filtered_read1
+                input_read2 = fastp_result.filtered_read2
+                logger.info("Using filtered reads from fastp")
+
+            # Track if fastp handled adapter trimming
+            if config.fastp_config.trim_adapters:
+                fastp_trimmed_adapters = True
+                logger.info("Adapter trimming handled by fastp")
+        else:
+            logger.warning("fastp failed, continuing with original reads")
+
+    # Determine effective mode (may change if fastp merged reads)
+    effective_mode = "paired" if input_read2 else "single"
+
+    # Step 2: Setup temp directory
     if config.tmpdir:
         newtmpdir = generate_random_dir(str(config.tmpdir))
     else:
         newtmpdir = generate_random_dir(str(config.output_path))
 
-    # Unzip the fastq.gz files
-    if not str(config.read1).endswith("gz"):
-        r1file = str(config.read1)
+    # Step 3: Unzip input files
+    if not str(input_read1).endswith("gz"):
+        r1file = str(input_read1)
         removerfiles = False
-        if config.mode == "paired":
-            if not config.read2:
+        if effective_mode == "paired":
+            if not input_read2:
                 raise ValueError("Read2 not provided in paired mode")
-            r2file = str(config.read2)
+            r2file = str(input_read2)
     else:
         removerfiles = True
-        if config.mode == "paired":
-            if not config.read2:
+        if effective_mode == "paired":
+            if not input_read2:
                 raise ValueError("Read2 not provided in paired mode")
-            r1file = run_unpigz(str(config.read1), newtmpdir, config.num_threads, config.gziptool)
-            r2file = run_unpigz(str(config.read2), newtmpdir, config.num_threads, config.gziptool)
+            r1file = run_unpigz(str(input_read1), newtmpdir, config.num_threads, config.gziptool)
+            r2file = run_unpigz(str(input_read2), newtmpdir, config.num_threads, config.gziptool)
         else:
-            r1file = run_unpigz(str(config.read1), newtmpdir, config.num_threads, config.gziptool)
+            r1file = run_unpigz(str(input_read1), newtmpdir, config.num_threads, config.gziptool)
 
     logger.info(f"Writing output files to {config.output_path}")
-    # TODO: If fastp was run before, we should skip adapter trimming here.
-    if config.adapter_trimming is True:
+
+    # Step 4: Optional cutadapt (only if adapter trimming requested and fastp didn't handle it)
+    if config.adapter_trimming is True and not fastp_trimmed_adapters:
         output_path = Path(config.output_path)
-        r2_input = r2file if config.mode == "paired" else None
+        r2_input = r2file if effective_mode == "paired" else None
         r1file, r2file_out = run_cutadapt(
-            r1file, r2_input, output_path, config.sample_name, config.adapter_sequence, config.mode
+            r1file, r2_input, output_path, config.sample_name, config.adapter_sequence, effective_mode
         )
-        if config.mode == "paired":
+        if effective_mode == "paired":
             if r2file_out is None:
                 raise ValueError("Cutadapt returned None for R2 in paired mode")
             r2file = r2file_out
 
+    # Step 5: UMI extraction
     output_path = Path(config.output_path)
-    if config.mode == "single":
+    if effective_mode == "single":
         outfilename = str(output_path / f"{config.sample_name}_umis_in_header.fastq")
         nseqs = preprocess_se(r1file, outfilename, config.umi_length, config.spacer_length)
         run_pigz(outfilename, config.num_threads, config.gziptool)
@@ -219,11 +350,11 @@ def run_preprocessing(config: PreprocessConfig) -> Tuple[list[str], int]:
             outfile1 = str(output_path / f"{config.sample_name}_R2_umis_in_header.fastq")
             outfile2 = str(output_path / f"{config.sample_name}_R1_umis_in_header.fastq")
         else:
-            # r1file=args.read1
-            # r2file=args.read2
             outfile1 = str(output_path / f"{config.sample_name}_R1_umis_in_header.fastq")
             outfile2 = str(output_path / f"{config.sample_name}_R2_umis_in_header.fastq")
-        nseqs = preprocess_pe(r1file, r2file, outfile1, outfile2, config.umi_length, config.spacer_length, config.dual_index)
+        nseqs = preprocess_pe(
+            r1file, r2file, outfile1, outfile2, config.umi_length, config.spacer_length, config.dual_index
+        )
         run_pigz(outfile1, config.num_threads, config.gziptool)
         run_pigz(outfile2, config.num_threads, config.gziptool)
         r1path = Path(r1file)
