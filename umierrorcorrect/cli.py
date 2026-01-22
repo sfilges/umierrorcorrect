@@ -135,6 +135,7 @@ def preprocess(
 def consensus(
     bam: Annotated[Path, typer.Option("-b", "--bam", help="Path to input BAM file.")],
     output: Annotated[Path, typer.Option("-o", "--output", help="Path to output directory.")],
+    reference: Annotated[Path, typer.Option("-r", "--reference", help="Path to reference genome FASTA.")],
     bed_file: Annotated[Optional[Path], typer.Option("-bed", "--bed-file", help="Path to BED file.")] = None,
     sample_name: Annotated[Optional[str], typer.Option("-s", "--sample-name", help="Sample name.")] = None,
     edit_distance: Annotated[int, typer.Option("-d", "--edit-distance", help="Edit distance threshold.")] = 1,
@@ -143,9 +144,8 @@ def consensus(
     consensus_method: Annotated[str, typer.Option("-c", "--consensus-method", help="Consensus method.")] = "position",
 ) -> None:
     """Generate consensus sequences from UMI-tagged BAM files."""
-    from argparse import Namespace
-
-    from umierrorcorrect.umi_error_correct import main as run_consensus
+    from umierrorcorrect.models.models import UMIErrorCorrectConfig
+    from umierrorcorrect.umi_error_correct import run_umi_errorcorrect
 
     # Set up file logging
     output.mkdir(parents=True, exist_ok=True)
@@ -153,27 +153,20 @@ def consensus(
     add_file_handler(log_path)
     logger.info(f"Logging to {log_path}")
 
-    args = Namespace(
-        bam_file=str(bam),
-        output_path=str(output),
-        bed_file=str(bed_file) if bed_file else None,
+    config = UMIErrorCorrectConfig(
+        reference_file=reference,
+        output_path=output,
+        bam_file=bam,
         sample_name=sample_name,
+        bed_file=bed_file,
         edit_distance_threshold=edit_distance,
-        num_threads=str(threads),
+        num_threads=threads,
         include_singletons=include_singletons,
         consensus_method=consensus_method,
-        group_method="position",
-        position_threshold=20,
-        indel_frequency_threshold=60.0,
-        consensus_frequency_threshold=60.0,
-        regions_from_bed=False,
-        regions_from_tag=False,
-        remove_large_files=False,
-        output_json=False,
     )
 
     logger.info("Starting consensus generation")
-    run_consensus(args)
+    run_umi_errorcorrect(config)
     logger.info("Consensus generation complete!")
 
 

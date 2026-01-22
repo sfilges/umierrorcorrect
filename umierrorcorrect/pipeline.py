@@ -105,7 +105,27 @@ def run_pipeline(args):
     # -----------------------------------------
     # Run UMI error correction
     # -----------------------------------------
-    run_umi_errorcorrect(args)
+    from umierrorcorrect.models.models import UMIErrorCorrectConfig
+
+    umi_config = UMIErrorCorrectConfig(
+        reference_file=Path(args.reference_file),
+        output_path=Path(args.output_path),
+        bam_file=Path(bam_file),
+        sample_name=args.sample_name,
+        bed_file=Path(args.bed_file) if args.bed_file else None,
+        position_threshold=getattr(args, "position_threshold", 20),
+        edit_distance_threshold=args.edit_distance_threshold,
+        num_threads=int(args.num_threads) if args.num_threads else None,
+        include_singletons=getattr(args, "include_singletons", True),
+        consensus_method=getattr(args, "consensus_method", "position"),
+        regions_from_bed=getattr(args, "regions_from_bed", False),
+        regions_from_tag=False,
+        indel_frequency_threshold=getattr(args, "indel_frequency_threshold", 60.0),
+        consensus_frequency_threshold=getattr(args, "consensus_frequency_threshold", 60.0),
+        output_json=getattr(args, "output_json", False),
+        remove_large_files=getattr(args, "remove_large_files", False),
+    )
+    run_umi_errorcorrect(umi_config)
     output_path = Path(args.output_path)
     cons_bam = str(output_path / f"{args.sample_name}_consensus_reads.bam")
 

@@ -1,12 +1,15 @@
 #!/usr/bin/env python
+from __future__ import annotations
+
 import json
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
+from collections.abc import Iterable
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
+from typing import Any
 
 import pysam
 
@@ -24,7 +27,8 @@ from umierrorcorrect.core.get_regions_from_bed import get_overlap, merge_regions
 from umierrorcorrect.core.group import read_bam_from_bed, read_bam_from_tag, readBam
 from umierrorcorrect.core.logging_config import get_logger
 from umierrorcorrect.core.umi_cluster import cluster_barcodes, get_connected_components, merge_clusters
-from umierrorcorrect.core.utils import check_output_directory, get_sample_name
+from umierrorcorrect.core.utils import get_sample_name
+from umierrorcorrect.models.models import UMIErrorCorrectConfig
 
 logger = get_logger(__name__)
 
@@ -35,16 +39,17 @@ CONS_FILE_ALLELE_START = 5  # Start of allele count columns
 CONS_FILE_ALLELE_END = 15  # End of allele count columns (exclusive)
 
 
-def write_to_json(cons_read):
-    outdict = {}
+def write_to_json(cons_read: Any) -> dict[str, Any]:
+    """Convert a consensus read to a JSON-serializable dictionary."""
+    outdict: dict[str, Any] = {}
     outdict["Name"] = cons_read.name
     outdict["Consensus"] = cons_read.seq
     outdict["Members"] = dict(cons_read.json)
     return outdict
 
 
-def cluster_consensus_worker(args):
-    """Run UMI clustering and consensus read generation on one region"""
+def cluster_consensus_worker(args: tuple) -> None:
+    """Run UMI clustering and consensus read generation on one region."""
     (
         umi_dict,
         samplename,
@@ -145,8 +150,8 @@ def cluster_consensus_worker(args):
         Path(statfilename).touch()
 
 
-def update_bam_header(bamfile, samplename):
-    """Update BAM header with sample name"""
+def update_bam_header(bamfile: str, samplename: str) -> dict[str, Any]:
+    """Update BAM header with sample name."""
     with pysam.AlignmentFile(bamfile, "rb") as f:
         new_header = f.header.copy().to_dict()
         template = {"ID": "L1", "SM": samplename, "LB": samplename, "PL": "ILLUMINA"}
@@ -155,8 +160,8 @@ def update_bam_header(bamfile, samplename):
     return new_header
 
 
-def merge_bams(output_path, original_bamfile, bamfilelist, sample_name):
-    """Merge all BAM files for in bamfilelist, and remove temporary files"""
+def merge_bams(output_path: str | Path, original_bamfile: str, bamfilelist: list[str], sample_name: str) -> None:
+    """Merge all BAM files in bamfilelist, and remove temporary files."""
     new_header = update_bam_header(original_bamfile, sample_name)
     output_bam = Path(output_path) / f"{sample_name}_consensus_reads.bam"
     g = pysam.AlignmentFile(str(output_bam), "wb", header=new_header)
@@ -170,7 +175,7 @@ def merge_bams(output_path, original_bamfile, bamfilelist, sample_name):
         Path(filename).unlink()
 
 
-def merge_cons(output_path, consfilelist, sample_name):
+def merge_cons(output_path: str | Path, consfilelist: list[str], sample_name: str) -> None:
     """Merge all cons files in consfilelist and remove temporary files."""
     output_tsv = Path(output_path) / f"{sample_name}_cons.tsv"
     with output_tsv.open("w") as g:
@@ -186,7 +191,7 @@ def merge_cons(output_path, consfilelist, sample_name):
         Path(filename).unlink()
 
 
-def check_duplicate_positions(cons_file):
+def check_duplicate_positions(cons_file: str) -> dict[str, list[str]]:
     """Check for duplicate positions in consensus file.
 
     Uses proper temporary files and avoids shell=True for security.
@@ -246,12 +251,12 @@ def check_duplicate_positions(cons_file):
             tmp2.unlink()
 
 
-def sum_lists(*args):
+def sum_lists(*args: tuple[int, ...]) -> list[int]:
     """Sum lists elementwise."""
     return list(map(sum, zip(*args)))
 
 
-def merge_duplicate_positions(args):
+def merge_duplicate_positions(args: tuple[str, list[str], str]) -> None:
     """Merge duplicate positions in consensus file."""
     chrx, duppos, cons_file = args
     dupcons = {}
@@ -330,7 +335,8 @@ def merge_duplicate_positions(args):
                         positions.append(pos)
 
 
-def merge_duplicate_positions_all_chromosomes(duppos, cons_file, num_cpus):
+def merge_duplicate_positions_all_chromosomes(duppos: dict[str, list[str]], cons_file: str, num_cpus: int) -> None:
+    """Merge duplicate positions across all chromosomes."""
     argvec = []
     # print(duppos)
     for chrx in duppos:
@@ -345,7 +351,7 @@ def merge_duplicate_positions_all_chromosomes(duppos, cons_file, num_cpus):
         cons_file2.rename(cons_file)
 
 
-def merge_tmp_cons_files(chrlist, cons_file):
+def merge_tmp_cons_files(chrlist: Iterable[str], cons_file: str) -> None:
     """Merge all temporary consensus files into a single file."""
     try:
         chrlist_sorted = sorted(chrlist, key=int)
@@ -365,7 +371,7 @@ def merge_tmp_cons_files(chrlist, cons_file):
         Path(filename).unlink()
 
 
-def merge_tmp_stats_files(output_path, statfilelist, sample_name):
+def merge_tmp_stats_files(output_path: str | Path, statfilelist: list[str], sample_name: str) -> None:
     """Merge all stat files in statfilelist and remove temporary files."""
     output_hist = Path(output_path) / f"{sample_name}{HISTOGRAM_SUFFIX}"
     with output_hist.open("w") as g:
@@ -428,16 +434,17 @@ def merge_duplicate_stat(stats_file: Path):
     histfile2.rename(histfile)
 
 
-def index_bam_file(filename, num_threads=1):
-    """Index the consensus reads bam file"""
+def index_bam_file(filename: str, num_threads: int = 1) -> None:
+    """Index the consensus reads BAM file."""
     pysam.sort("-@", str(num_threads), filename, "-o", filename + ".sorted", catch_stdout=False)
     Path(filename + ".sorted").rename(filename)
     pysam.index(filename, catch_stdout=False)
 
 
-def split_into_chunks(umi_dict, clusters):
-    """If one region contains more than 100000 raw reads, split in chunks of 100000.
-    keep all barcodes in same cluster in the same chunk.
+def split_into_chunks(umi_dict: dict[str, int], clusters: list[list[str]]) -> list[dict[str, int]]:
+    """Split a region into chunks if it contains more than 100000 raw reads.
+
+    Keeps all barcodes in the same cluster together in the same chunk.
     """
     n = 0
     newdicts = []
@@ -456,26 +463,26 @@ def split_into_chunks(umi_dict, clusters):
 
 
 def cluster_umis_all_regions(
-    regions,
-    ends,
-    edit_distance_threshold,
-    samplename,
-    bamfilename,
-    output_path,
-    include_singletons,
-    fasta,
-    bedregions,
-    num_cpus,
-    consensus_method,
-    indel_frequency_cutoff,
-    consensus_frequency_cutoff,
-    outputjson=False,
-    region_from_tag=False,
-    starts=None,
-):
-    """
-    Function for running UMI clustering and error correction using num_cpus threads,
-    i.e. one region on each thread.
+    regions: dict[str, dict[int | str, dict[str, int]]],
+    ends: dict[str, dict[int | str, int]],
+    edit_distance_threshold: int,
+    samplename: str,
+    bamfilename: str,
+    output_path: str | Path,
+    include_singletons: bool,
+    fasta: str | Path,
+    bedregions: dict[str, list],
+    num_cpus: int,
+    consensus_method: str,
+    indel_frequency_cutoff: float,
+    consensus_frequency_cutoff: float,
+    outputjson: bool = False,
+    region_from_tag: bool = False,
+    starts: dict[str, dict[int | str, int]] | None = None,
+) -> list[str]:
+    """Run UMI clustering and error correction using num_cpus threads.
+
+    Processes one region on each thread.
     """
     if starts is None:
         starts = {}
@@ -560,8 +567,10 @@ def cluster_umis_all_regions(
     return bamfilelist
 
 
-def cluster_umis_on_position(bamfilename, position_threshold, group_method, bedfilename=None):
-    """Function for clustering UMIs on position."""
+def cluster_umis_on_position(
+    bamfilename: str, position_threshold: int, group_method: str, bedfilename: str | None = None
+) -> tuple:
+    """Cluster UMIs by genomic position."""
     position_threshold = int(position_threshold)
     if group_method == "fromBed":
         regions, ends = read_bam_from_bed(bamfilename, bedfilename, position_threshold)
@@ -576,88 +585,93 @@ def cluster_umis_on_position(bamfilename, position_threshold, group_method, bedf
         return (regions, ends)
 
 
-def run_umi_errorcorrect(args):
-    """Run the umi clustering and consensus read generation (error correction)"""
-    logger.info("Starting UMI clustering")
-    args.output_path = check_output_directory(args.output_path)
+def run_umi_errorcorrect(config: UMIErrorCorrectConfig) -> None:
+    """Run UMI clustering and consensus read generation (error correction).
 
-    if args.regions_from_bed:
+    Args:
+        config: Configuration object containing all parameters for error correction.
+    """
+    logger.info("Starting UMI clustering")
+
+    # Derive group_method from config flags
+    if config.regions_from_bed:
         group_method = "fromBed"
-    elif args.regions_from_tag:
+    elif config.regions_from_tag:
         group_method = "fromTag"
     else:
         group_method = "automatic"
-    args.consensus_method = args.consensus_method.lower()
-    if args.consensus_method.startswith("pos"):
+
+    # Validate consensus method
+    consensus_method = config.consensus_method.lower()
+    if consensus_method.startswith("pos"):
         consensus_method = "position"
-    elif args.consensus_method.startswith("most"):
+    elif consensus_method.startswith("most"):
         consensus_method = "most_common"
-    elif args.consensus_method.startswith("msa") or args.consensus_method.startswith("multiple"):
+    elif consensus_method.startswith("msa") or consensus_method.startswith("multiple"):
         consensus_method = "msa"
     else:
-        print("Please choose consensus method between 'position','most_common','MSA'")
-        sys.exit(1)
+        raise ValueError("Please choose consensus method between 'position', 'most_common', 'msa'")
+
     logger.info(f"Group by position method: {group_method}")
     logger.info(f"Consensus method: {consensus_method}")
-    output_path = Path(args.output_path)
-    if not args.bam_file and args.sample_name:
-        # see if it is possible to guess bam file from previous step.
-        testname = output_path / f"{args.sample_name}.sorted.bam"
-        if testname.is_file():
-            args.bam_file = str(testname)
-    if not args.bam_file:
-        bamfile = list(output_path.glob("*sorted.bam"))
-        if len(bamfile) > 1:
-            print(
-                "Too many sorted.bam files in output folder, please specify which sample to run with -s (sample name) or -b (path to bam file)."
-            )
-            sys.exit(1)
-        else:
-            args.bam_file = str(bamfile[0])
-    if not args.sample_name:
-        args.sample_name = get_sample_name(args.bam_file)
+
+    # Config validator handles bam_file and sample_name auto-detection
+    output_path = config.output_path
+    bam_file = str(config.bam_file) if config.bam_file else None
+    sample_name = config.sample_name
+    bed_file = str(config.bed_file) if config.bed_file else None
+
+    if not bam_file:
+        raise ValueError("bam_file must be provided or auto-detected")
+    if not sample_name:
+        raise ValueError("sample_name must be provided or auto-detected")
+
+    # Cluster UMIs on position
     if group_method == "fromTag":
         regions, ends, starts = cluster_umis_on_position(
-            args.bam_file, args.position_threshold, group_method, args.bed_file
+            bam_file, config.position_threshold, group_method, bed_file
         )
     else:
-        regions, ends = cluster_umis_on_position(args.bam_file, args.position_threshold, group_method, args.bed_file)
+        regions, ends = cluster_umis_on_position(bam_file, config.position_threshold, group_method, bed_file)
+        starts = None
 
-    nregions = 0
-    for chrx in regions:
-        nregions += len(regions[chrx])
-    logger.info(f"Number of regions, {nregions}")
+    nregions = sum(len(regions[chrx]) for chrx in regions)
+    logger.info(f"Number of regions: {nregions}")
 
-    edit_distance_threshold = args.edit_distance_threshold
-    num_cpus = int(args.num_threads) if args.num_threads else int(cpu_count())
+    edit_distance_threshold = config.edit_distance_threshold
+    num_cpus = config.num_threads if config.num_threads else cpu_count()
     logger.info("Starting Consensus sequence generation")
     logger.info(f"Starting {num_cpus} threads")
-    fasta = args.reference_file
-    if args.bed_file:
-        bedregions = read_bed(args.bed_file)
+
+    fasta = str(config.reference_file)
+
+    # Load BED regions if provided
+    if bed_file:
+        bedregions = read_bed(bed_file)
         bedregions = sort_regions(bedregions)
         if group_method == "fromBed":
             bedregions = merge_regions(bedregions, 0)
     else:
         bedregions = {}
 
+    # Run clustering on all regions
     if group_method == "fromTag":
         bamfilelist = cluster_umis_all_regions(
             regions,
             ends,
             edit_distance_threshold,
-            args.sample_name,
-            args.bam_file,
-            args.output_path,
-            args.include_singletons,
+            sample_name,
+            bam_file,
+            str(output_path),
+            config.include_singletons,
             fasta,
             bedregions,
             num_cpus,
             consensus_method,
-            args.indel_frequency_threshold,
-            args.consensus_frequency_threshold,
-            args.output_json,
-            args.regions_from_tag,
+            config.indel_frequency_threshold,
+            config.consensus_frequency_threshold,
+            config.output_json,
+            config.regions_from_tag,
             starts,
         )
     else:
@@ -665,39 +679,50 @@ def run_umi_errorcorrect(args):
             regions,
             ends,
             edit_distance_threshold,
-            args.sample_name,
-            args.bam_file,
-            args.output_path,
-            args.include_singletons,
+            sample_name,
+            bam_file,
+            str(output_path),
+            config.include_singletons,
             fasta,
             bedregions,
             num_cpus,
             consensus_method,
-            args.indel_frequency_threshold,
-            args.consensus_frequency_threshold,
-            args.output_json,
+            config.indel_frequency_threshold,
+            config.consensus_frequency_threshold,
+            config.output_json,
         )
-    merge_bams(args.output_path, args.bam_file, bamfilelist, args.sample_name)
-    consensus_bam = output_path / f"{args.sample_name}_consensus_reads.bam"
-    index_bam_file(str(consensus_bam), num_cpus)
-    consfilelist = [x.rstrip(".bam") + ".cons" for x in bamfilelist]
-    merge_cons(args.output_path, consfilelist, args.sample_name)
-    cons_file = str(output_path / f"{args.sample_name}_cons.tsv")
-    if args.remove_large_files:
-        (output_path / args.bam_file).unlink()
 
+    # Merge and index BAM files
+    merge_bams(output_path, bam_file, bamfilelist, sample_name)
+    consensus_bam = output_path / f"{sample_name}_consensus_reads.bam"
+    index_bam_file(str(consensus_bam), num_cpus)
+
+    # Merge consensus files
+    consfilelist = [x.rstrip(".bam") + ".cons" for x in bamfilelist]
+    merge_cons(output_path, consfilelist, sample_name)
+    cons_file = str(output_path / f"{sample_name}_cons.tsv")
+
+    # Optionally remove large files
+    if config.remove_large_files:
+        bam_path = output_path / Path(bam_file).name
+        if bam_path.exists():
+            bam_path.unlink()
+
+    # Merge stats files and handle duplicates
     statfilelist = [x.rstrip(".bam") + HISTOGRAM_SUFFIX for x in bamfilelist]
-    merge_tmp_stats_files(args.output_path, statfilelist, args.sample_name)
+    merge_tmp_stats_files(output_path, statfilelist, sample_name)
     duppos = check_duplicate_positions(cons_file)
-    stats_file = output_path / f"{args.sample_name}{HISTOGRAM_SUFFIX}"
-    if any(duppos):
+    stats_file = output_path / f"{sample_name}{HISTOGRAM_SUFFIX}"
+    if any(duppos.values()):
         merge_duplicate_positions_all_chromosomes(duppos, cons_file, num_cpus)
     merge_duplicate_stat(stats_file)
+
     logger.info(
-        f"Consensus generation complete, output written to {args.output_path}/{args.sample_name}_consensus_reads.bam, "
-        f"{args.output_path}/{args.sample_name}_cons.tsv"
+        f"Consensus generation complete, output written to {output_path}/{sample_name}_consensus_reads.bam, "
+        f"{output_path}/{sample_name}_cons.tsv"
     )
 
 
-def main(args):
-    run_umi_errorcorrect(args)
+def main(config: UMIErrorCorrectConfig) -> None:
+    """Main entry point for UMI error correction."""
+    run_umi_errorcorrect(config)
