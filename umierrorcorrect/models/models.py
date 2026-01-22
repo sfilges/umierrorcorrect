@@ -105,6 +105,10 @@ class MutationResult(BaseModel):
 # =============================================================================
 
 
+# TODO: The consensus information should be added to the sample model after the main pipeline has been run.abs
+#       Together with that and the mutation be information and other metdata, the MutationResult model can be
+#       calculated. For example, the VAF can be calculated as the ratio of mutant molecule count to total reads at
+#       the mutation site. divinding the mutant molecule count by the ml_plasma will give the mm_per_ml.
 class Sample(BaseModel):
     """A single sequencing sample with FASTQ files and metadata."""
 
@@ -201,20 +205,29 @@ class Patient(BaseModel):
 # =============================================================================
 
 # Required columns in sample sheet CSV
-SAMPLESHEET_REQUIRED_COLUMNS = {"patient_id", "mutation_bed", "sample_name", "read1"}
+# Minimal columns needed to run the main analysis pipeline from fastq to UMI Error Correction
+SAMPLESHEET_REQUIRED_COLUMNS = {"sample_name", "read1"}
 
 # Optional columns with their types
+# These are needed for downstream analysis and reporting
 SAMPLESHEET_OPTIONAL_COLUMNS = {
-    "read2": Path,
-    "sample_type": str,
-    "replicate": int,
-    "ng_input": float,
-    "ml_plasma": float,
-    "region_bed": Path,
-    "collection_date": str,
+    "read2": Path,  # Needed for paired-end reads
+    "region_bed": Path,  # Needed for annotation of regions during UMI Error Correction
+    "patient_id": str,  # Needed to link samples and mutations to patients
+    "mutation_bed": Path,  # Needed to link samples to patient-specific mutations
+    "sample_type": str,  # Defines what types of reports to generate for the sample
+    "replicate": int,  # If replicates exist they should be handled downstream to provide a single report
+    "ng_input": float,  # Input DNA concentration in ng
+    "ml_plasma": float,  # Plasma volume in ml, used to calculate mutant molecules per mL plasma
+    "collection_date": str,  # Collection date in YYYY-MM-DD format
 }
 
 
+# TODO: Need to make sure that downstream analysis can handle the optional columns and that the analysis can handle
+#       missing optional columns.
+# TODO: This might conflict with the sample sheet parse method from batch.py. The basic sample sheet for processing
+#       should follow the batch.py format (i.e. just need the sample name and fastq_1 with optional fastq_2).That is enough
+#       to run the analysis. The additional data is only needed for downstream analysis and reporting.
 class SampleSheet(BaseModel):
     """Parses and validates a sample sheet CSV, grouping samples by patient.
 
@@ -222,8 +235,8 @@ class SampleSheet(BaseModel):
         patient_id,mutation_bed,sample_name,read1,read2,sample_type,replicate,ng_input,ml_plasma,region_bed,collection_date
         P001,/path/mutations.bed,P001_T0,/path/R1.fq.gz,/path/R2.fq.gz,ctdna,1,10.5,2.0,/path/regions.bed,2024-01-15
 
-    Required columns: patient_id, mutation_bed, sample_name, read1
-    Optional columns: read2, sample_type, replicate, ng_input, ml_plasma, region_bed, collection_date
+    Required columns: sample_name, read1
+    Optional columns: read2, patient_id, mutation_bed, sample_type, replicate, ng_input, ml_plasma, region_bed, collection_date
     """
 
     csv_path: Path
