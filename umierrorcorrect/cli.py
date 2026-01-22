@@ -59,12 +59,20 @@ def preprocess(
     dual_index: Annotated[bool, typer.Option("--dual-index", help="Use dual indices.")] = False,
     reverse_index: Annotated[bool, typer.Option("--reverse-index", help="UMI is on R2.")] = False,
     adapter_trimming: Annotated[bool, typer.Option("--trim/--no-trim", help="Perform 3' adapter trimming.")] = True,
-    adapter_sequence: Annotated[str, typer.Option("-a", "--adapter", help="Adapter sequence to trim.")] = "illumina",
+    adapter_sequence: Annotated[
+        str,
+        typer.Option("-a", "--adapter", help="Adapter sequence to trim (used by cutadapt; fastp uses auto-detection)."),
+    ] = "illumina",
     force: Annotated[bool, typer.Option("-f", "--force", help="Overwrite existing files.")] = False,
-    fastp: Annotated[bool, typer.Option("--fastp/--no-fastp", help="Enable fastp quality filtering.")] = True,
+    fastp: Annotated[
+        bool, typer.Option("--fastp/--no-fastp", help="Enable fastp quality filtering and UMI extraction.")
+    ] = True,
     fastp_phred: Annotated[int, typer.Option("--fastp-phred", "-q", help="Minimum Phred score for fastp.")] = 20,
     fastp_merge: Annotated[
         bool, typer.Option("--fastp-merge/--no-fastp-merge", help="Merge overlapping reads with fastp.")
+    ] = True,
+    fastp_extract_umi: Annotated[
+        bool, typer.Option("--fastp-extract-umi/--no-fastp-extract-umi", help="Extract UMIs with fastp.")
     ] = True,
 ) -> None:
     """Preprocess FASTQ files by extracting UMIs and adding them to read headers."""
@@ -94,7 +102,7 @@ def preprocess(
             merge_reads=fastp_merge,
             trim_adapters=adapter_trimming,
             threads=threads,
-            umi_enabled=True,
+            umi_enabled=fastp_extract_umi,
             umi_length=umi_length,
             umi_skip=spacer_length,
             umi_loc=umi_loc,
@@ -377,7 +385,12 @@ def batch(
     reference: Annotated[Path, typer.Option("-r", "--reference", help="Path to reference genome FASTA.")] = ...,
     output_dir: Annotated[Path, typer.Option("-o", "--output-dir", help="Output directory for all samples.")] = ...,
     bed_file: Annotated[
-        Optional[Path], typer.Option("-bed", "--bed-file", help="Path to BED file defining targeted regions.")
+        Optional[Path], typer.Option("-rb", "--regions-bed", help="Path to BED file defining targeted regions.")
+    ] = None,
+    # TODO: Mutation bed is currently not used, but will be required for reporting in the future.
+    mut_bed: Annotated[
+        Optional[Path],
+        typer.Option("-mb", "--mutations-bed", help="Path to BED file defining patient-specific mutation positions."),
     ] = None,
     umi_length: Annotated[int, typer.Option("-ul", "--umi-length", help="Length of UMI sequence.")] = 19,
     spacer_length: Annotated[

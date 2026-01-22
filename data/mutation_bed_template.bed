@@ -1,0 +1,7 @@
+# Mutation BED file format for ctDNA tracking
+# Columns: chrom, start (0-based), end, name, ref, alt
+# Example mutations for patient tracking
+chr14	22982082	22982083	AJUBA_c.184G>T	G	T
+chr11	108250700	108250701	ATM_c.1236G>T	G	T
+chr11	119278164	119278165	CBL_c.1096-1G>C	G	C
+chr11	119278165	119278166	CBL_c.1096G>T	G	T
