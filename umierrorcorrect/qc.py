@@ -69,3 +69,10 @@ def run_multiqc(input_dir: Path, output_dir: Path) -> bool:
     except subprocess.CalledProcessError as e:
         logger.error(f"MultiQC failed: {e.stderr}")
         return False
+
+
+# TODO: Generate QC summary: on-target fraction, coverage, etc. per sample
+# TODO: What is in the "_target_coverage.txt" file?
+# TODO: Move the downsampling logic to the QC module
+# TODO: Add a function to calculate on-target fraction
+# TODO: Estimate background error if mutation bed is provided and known mutations can be ruled out
