@@ -15,10 +15,8 @@ import numpy as np
 from umierrorcorrect.core.constants import DEFAULT_FAMILY_SIZES, HISTOGRAM_SUFFIX
 from umierrorcorrect.core.logging_config import get_logger
 from umierrorcorrect.get_consensus_statistics import (
-    get_stat,
     RegionConsensusStats,
-    calculate_target_coverage,
-    get_overall_statistics,
+    get_stat,
 )
 
 logger = get_logger(__name__)
@@ -89,9 +87,9 @@ def downsample_reads_per_region(hist, _fraction, fsizes, onlyNamed=True):
         if onlyNamed and h.name == "":
             run_analysis = False
         if run_analysis:
-            # hist: list of family sizes (e.g., [5, 3, 10, 2] means 4 families with 5, 3, 10, and 2 reads)
+            # family_sizes: list of family sizes (e.g., [5, 3, 10, 2] means 4 families with 5, 3, 10, and 2 reads)
             # singletons: number of singletons
-            num_families = len(h.hist)
+            num_families = len(h.family_sizes)
             # tmpnames: list of family indices (e.g., [0, 1, 2, 3])
             tmpnames = np.array(range(0, num_families))
 
@@ -99,7 +97,7 @@ def downsample_reads_per_region(hist, _fraction, fsizes, onlyNamed=True):
             singnames = list(range(num_families, num_families + h.singletons))
 
             # Convert to np.array
-            times = np.array(h.hist)
+            times = np.array(h.family_sizes)
 
             # Expand the temp names by the number of reads per family
             # Result: [0,0,0,0,0, 1,1,1, 2,2,2,2,2,2,2,2,2,2]
@@ -116,8 +114,8 @@ def downsample_reads_per_region(hist, _fraction, fsizes, onlyNamed=True):
                 # new_hist = [3, 1, 5, 1] (sorted descending: [5, 3, 1, 1])
                 new_hist = sorted(new_hist, reverse=True)  # sort
                 new_singletons = list(new_hist).count(1)  # count singletons in new
-                new_stat = region_cons_stat(h.regionid, h.pos, h.name, new_singletons, h.fsizes)
-                new_stat.add_histogram(new_hist, fsizes)
+                new_stat = RegionConsensusStats(h.regionid, h.pos, h.name, new_singletons, h.fsizes)
+                new_stat.add_family_sizes(new_hist, fsizes)
                 results[r] = new_stat
             all_results.append(results)
     return all_results
@@ -145,10 +143,10 @@ def run_downsampling(output_path, consensus_filename, stat_filename, fsize, samp
 
     hist = get_stat(consensus_filename, stat_filename)
     fsizes = list(DEFAULT_FAMILY_SIZES)[1:]  # Exclude 0, which is handled separately
-    tot_results = region_cons_stat("All", "all_regions", "", 0, fsizes)
+    tot_results = RegionConsensusStats("All", "all_regions", "", 0, fsizes)
     for h in hist:
-        # print(h.hist)
-        tot_results.hist = tot_results.hist + h.hist
+        # print(h.family_sizes)
+        tot_results.family_sizes = tot_results.family_sizes + h.family_sizes
         tot_results.singletons += h.singletons
 
     downsample_rates = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
