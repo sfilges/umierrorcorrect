@@ -8,9 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.30.1] - 2026-01-23
 
 ### Added
+
 - **Shell Completion**: Re-enabled `typer` shell completion support via `--install-completion`.
 
 ### Fixed
+
 - **Numba Stability**: Added robust error handling for broken Numba/LLVM installations to ensure graceful fallback.
 - **Recursive Discovery**: Fixed recursive FASTQ discovery in subdirectories for the `batch` command.
 - **Type Safety**: Resolved 80+ `mypy` errors and improved type annotations across the codebase.

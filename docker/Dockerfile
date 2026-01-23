@@ -1,4 +1,7 @@
 ################## BASE IMAGE ######################
+# Build this image from the project root:
+# docker build -f docker/Dockerfile -t umierrorcorrect2:0.30.1 .
+
 FROM ubuntu:24.04
 
 ################## METADATA ######################
@@ -44,12 +47,14 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /app
 
 # Set up Python environment with uv
-ENV UV_SYSTEM_PYTHON=1
 ENV UV_COMPILE_BYTECODE=1
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy project files and install
 COPY . .
-RUN uv pip install --no-cache .[fast] cutadapt
+RUN uv venv $VIRTUAL_ENV && \
+    uv pip install --no-cache .[fast] cutadapt
 
 # Set working directory for data
 WORKDIR /data

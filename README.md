@@ -21,8 +21,8 @@ This package is a **complete modernization** of the original [UMIErrorCorrect](h
 
 ## Dependencies
 
-- `fastp` for preprocessing
-- `bwa` for alignment
+- [fastp](https://github.com/OpenGene/fastp) for preprocessing
+- [bwa](https://github.com/lh3/bwa) for alignment
 
 ## Installation
 
@@ -62,8 +62,8 @@ umierrorcorrect --help
 ## Documentation
 
 - [User Guide](docs/USER_GUIDE.md): Detailed usage instructions for all commands.
+- [Docker Guide](docs/DOCKER.md): Running with containers.
 - [Implementation Details](docs/IMPLEMENTATION.md): Architecture and design overview.
-- [Docker Guide](docs/docker.md): Running with containers.
 
 ## Citation
 

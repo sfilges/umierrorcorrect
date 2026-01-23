@@ -1,29 +1,36 @@
 # Docker documentation
 
-If you have Docker installed, pull the Docker image from Docker hub.
+If you have Docker installed, pull the Docker image from Docker Hub.
 
 ```bash
-docker pull tobiasosterlund/umierrorcorrect
+docker pull sfilges/umierrorcorrect2
 ```
 
-Download a reference genome fasta file and mount the reference directory and data directory (including fastq files and BED files) to the docker container:
+Download a reference genome fasta file and mount the reference directory and data directory (including fastq files and BED files) to the docker container. The container is configured with `umierrorcorrect` as the entrypoint.
+
+To view the help message:
 
 ```bash
-docker run -v /path_to_reference_fasta_directory/:/references/ -v /path_to_data_directory/:/data/ -it tobiasosterlund/umierrorcorrect
+docker run -it sfilges/umierrorcorrect2 --help
 ```
-To try to run the pipeline:
+
+## Running the pipeline
+
+Since the umierrorcorrect pipeline uses `bwa` for mapping reads, a bwa-indexed reference genome is needed.
+
+To run the full pipeline, use the `batch` command. Note that all file paths must be relative to the mapped volumes inside the container (e.g., `/data/...` or `/references/...`).
+
+Example command:
 
 ```bash
-run_umierrorcorrect.py -h
+docker run -v /path/to/references/:/references/ -v /path/to/data/:/data/ -it sfilges/umierrorcorrect2 \
+    batch \
+    -r1 /data/read1.fastq.gz \
+    -r2 /data/read2.fastq.gz \
+    -ul 12 \
+    -sl 0 \
+    -r /references/reference.fa \
+    -o /data/output_directory
 ```
 
-Since the umierrorcorrect pipeline is using `bwa` for mapping of reads, a bwa-indexed reference genome is needed. Index the reference genome with the command `bwa index -a bwtsw /references/reference.fa`.
-
-Change the path to the data directory and run the pipeline. 
-Example syntax for running the whole pipeline:
-
-```bash
-cd /data
-run_umierrorcorrect.py -r1 read1.fastq.gz -r2 read2.fastq.gz -ul umi_length -sl spacer_length -r /references/reference.fa -o output_directory
-```
-
+You can also run individual steps, for example `preprocess` or `consensus` instead of `batch`.
