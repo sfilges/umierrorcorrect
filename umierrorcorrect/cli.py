@@ -6,8 +6,9 @@ from typing import Annotated, Optional
 
 import typer
 from rich.console import Console
+from rich.text import Text
 
-from umierrorcorrect.core.constants import DEFAULT_FAMILY_SIZES_STR
+from umierrorcorrect.core.constants import ASCII_ART, DEFAULT_FAMILY_SIZES_STR
 from umierrorcorrect.core.logging_config import add_file_handler, get_log_path, get_logger, setup_logging
 from umierrorcorrect.version import __version__
 
@@ -533,7 +534,7 @@ def batch(
         mode_str = "Sample Sheet"
 
     # Print summary
-    console.print("[bold green]UMI Error Correct[/bold green]")
+    console.print(Text(ASCII_ART, style="bold green"))
     console.print(f"  Mode: {mode_str}")
     console.print(f"  Samples: {len(samples)}")
 

@@ -16,7 +16,7 @@ from umierrorcorrect.core.utils import check_output_directory, get_sample_name
 class FastpResult:
     """Result of fastp preprocessing."""
 
-    filtered_read1: Path
+    filtered_read1: Path | None = None
     filtered_read2: Path | None = None
     merged_reads: Path | None = None
     fastp_json: Path | None = None
@@ -36,6 +36,7 @@ class FastpConfig(BaseModel):
     umi_length: int = 0
     umi_skip: int = 0  # spacer length
     umi_loc: Literal["read1", "read2", "per_read"] = "read1"
+    keep_unmerged: bool = False  # If True AND merge_reads=True, output unmerged reads
 
 
 # =============================================================================
@@ -383,7 +384,7 @@ class PreprocessConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @model_validator(mode="after")
-    def validate_and_configure(self) -> "PreprocessConfig":
+    def validate_and_configure(self) -> PreprocessConfig:
         # Check output directory
         self.output_path = Path(check_output_directory(str(self.output_path)))
 
@@ -487,7 +488,7 @@ class UMIErrorCorrectConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @model_validator(mode="after")
-    def validate_and_configure(self) -> "UMIErrorCorrectConfig":
+    def validate_and_configure(self) -> UMIErrorCorrectConfig:
         """Auto-detect bam_file and sample_name if not provided."""
         self.output_path = Path(check_output_directory(str(self.output_path)))
 

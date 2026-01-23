@@ -3,7 +3,7 @@
 umierrorcorrect, preprocess.py - Preprocess FASTQ sequences.
 ============================================================
 
-:Authors: Tobias Osterlund, Stefan Filges
+:Authors: Stefan Filges, Tobias Osterlund
 
 Purpose
 -------
@@ -58,33 +58,25 @@ def run_fastp(
     # Determine output file naming based on whether UMI extraction is enabled
     umi_extraction = config.umi_enabled and config.umi_length > 0
 
-    # Output file paths - use "_umis_in_header" suffix when fastp handles UMI extraction
-    if umi_extraction:
-        filtered_r1 = (
-            output_dir / f"{sample_name}_umis_in_header.fastq.gz"
-            if not read2
-            else output_dir / f"{sample_name}_R1_umis_in_header.fastq.gz"
-        )
-    else:
-        filtered_r1 = output_dir / f"{sample_name}.filtered.R1.fastq.gz"
+    # Initialize output paths
+    filtered_r1: Optional[Path] = None
     filtered_r2: Optional[Path] = None
     merged_reads: Optional[Path] = None
+
     fastp_json = output_dir / f"{sample_name}.fastp.json"
     fastp_html = output_dir / f"{sample_name}.fastp.html"
 
     cmd = [
         "fastp",
-        "-i",
+        "--in1",
         str(read1),
-        "-o",
-        str(filtered_r1),
-        "-j",
+        "--json",
         str(fastp_json),
-        "-h",
+        "--html",
         str(fastp_html),
-        "-q",
+        "--qualified_quality_phred",
         str(config.phred_score),
-        "-w",
+        "--thread",
         str(config.threads),
     ]
 
@@ -97,7 +89,8 @@ def run_fastp(
         cmd.append("--disable_adapter_trimming")
 
     # Add UMI extraction if enabled
-    if config.umi_enabled and config.umi_length > 0:
+    if umi_extraction:
+        # TODO: What happens if umi_loc is in ["read2", "per_read"], but read2 is not provided?
         cmd.extend(
             [
                 "--umi",
@@ -110,19 +103,49 @@ def run_fastp(
         if config.umi_skip > 0:
             cmd.extend(["--umi_skip", str(config.umi_skip)])
 
+    # Handle Paired-end vs Single-end and Merging logic
     if read2:
-        if umi_extraction:
-            filtered_r2 = output_dir / f"{sample_name}_R2_umis_in_header.fastq.gz"
-        else:
-            filtered_r2 = output_dir / f"{sample_name}.filtered.R2.fastq.gz"
-        cmd.extend(["-I", str(read2), "-O", str(filtered_r2)])
+        cmd.extend(["--in2", str(read2)])
 
         if config.merge_reads:
+            # Merge mode
             if umi_extraction:
-                merged_reads = output_dir / f"{sample_name}_umis_in_header.fastq.gz"
+                merged_reads_name = f"{sample_name}_umis_in_header.fastq.gz"
             else:
-                merged_reads = output_dir / f"{sample_name}.merged.fastq.gz"
+                merged_reads_name = f"{sample_name}.merged.fastq.gz"
+
+            merged_reads = output_dir / merged_reads_name
             cmd.extend(["--merge", "--merged_out", str(merged_reads)])
+
+            # Optionally keep unmerged reads
+            if config.keep_unmerged:
+                if umi_extraction:
+                    filtered_r1 = output_dir / f"{sample_name}_R1_unmerged_umis_in_header.fastq.gz"
+                    filtered_r2 = output_dir / f"{sample_name}_R2_unmerged_umis_in_header.fastq.gz"
+                else:
+                    filtered_r1 = output_dir / f"{sample_name}.unmerged.R1.fastq.gz"
+                    filtered_r2 = output_dir / f"{sample_name}.unmerged.R2.fastq.gz"
+
+                cmd.extend(["--out1", str(filtered_r1), "--out2", str(filtered_r2)])
+        else:
+            # Paired-end NO merge
+            if umi_extraction:
+                filtered_r1 = output_dir / f"{sample_name}_R1_umis_in_header.fastq.gz"
+                filtered_r2 = output_dir / f"{sample_name}_R2_umis_in_header.fastq.gz"
+            else:
+                filtered_r1 = output_dir / f"{sample_name}.filtered.R1.fastq.gz"
+                filtered_r2 = output_dir / f"{sample_name}.filtered.R2.fastq.gz"
+
+            cmd.extend(["--out1", str(filtered_r1), "--out2", str(filtered_r2)])
+
+    else:
+        # Single-end mode
+        if umi_extraction:
+            filtered_r1 = output_dir / f"{sample_name}_umis_in_header.fastq.gz"
+        else:
+            filtered_r1 = output_dir / f"{sample_name}.filtered.R1.fastq.gz"
+
+        cmd.extend(["--out1", str(filtered_r1)])
 
     logger.info(f"Running fastp on {sample_name}")
     try:
