@@ -6,7 +6,7 @@ from umierrorcorrect.core.consensus import (
     _phred_to_prob,
     calc_consensus,
     calc_consensus_probabilities,
-    consensus_read,
+    ConsensusRead,
     get_ascii,
     get_most_common_allele,
     get_phred,
@@ -81,11 +81,11 @@ class TestPhredConversions:
 
 
 class TestConsensusRead:
-    """Tests for consensus_read class."""
+    """Tests for ConsensusRead class."""
 
     def test_init(self):
-        """Test consensus_read initialization."""
-        cr = consensus_read("chr1", "region1", 100, "ACGT", 10)
+        """Test ConsensusRead initialization."""
+        cr = ConsensusRead("chr1", "region1", 100, "ACGT", 10)
 
         assert cr.contig == "chr1"
         assert cr.start_pos == 100
@@ -95,7 +95,7 @@ class TestConsensusRead:
 
     def test_add_base(self):
         """Test adding bases to consensus read."""
-        cr = consensus_read("chr1", "region1", 100, "ACGT", 10)
+        cr = ConsensusRead("chr1", "region1", 100, "ACGT", 10)
 
         cr.add_base("A", "I")
         cr.add_base("C", "I")
@@ -108,7 +108,7 @@ class TestConsensusRead:
 
     def test_add_insertion(self):
         """Test adding insertions to consensus read."""
-        cr = consensus_read("chr1", "region1", 100, "ACGT", 10)
+        cr = ConsensusRead("chr1", "region1", 100, "ACGT", 10)
 
         cr.add_base("A", "I")
         cr.add_insertion("CG")  # 2-base insertion
@@ -120,7 +120,7 @@ class TestConsensusRead:
 
     def test_add_deletion(self):
         """Test adding deletions to consensus read."""
-        cr = consensus_read("chr1", "region1", 100, "ACGT", 10)
+        cr = ConsensusRead("chr1", "region1", 100, "ACGT", 10)
 
         cr.add_base("A", "I")
         cr.add_deletion(3)  # 3-base deletion
@@ -133,7 +133,7 @@ class TestConsensusRead:
 
     def test_get_cigar(self):
         """Test CIGAR generation."""
-        cr = consensus_read("chr1", "region1", 100, "ACGT", 10)
+        cr = ConsensusRead("chr1", "region1", 100, "ACGT", 10)
 
         cr.add_base("A", "I")
         cr.add_base("C", "I")
@@ -146,7 +146,7 @@ class TestConsensusRead:
 
     def test_get_cigar_with_insertion(self):
         """Test CIGAR generation with insertion."""
-        cr = consensus_read("chr1", "region1", 100, "ACGT", 10)
+        cr = ConsensusRead("chr1", "region1", 100, "ACGT", 10)
 
         cr.add_base("A", "I")
         cr.add_insertion("CG")  # 2-base insertion
@@ -158,7 +158,7 @@ class TestConsensusRead:
 
     def test_seq_property_lazy_evaluation(self):
         """Test that seq property lazily joins parts."""
-        cr = consensus_read("chr1", "region1", 100, "ACGT", 10)
+        cr = ConsensusRead("chr1", "region1", 100, "ACGT", 10)
 
         cr.add_base("A", "I")
         cr.add_base("C", "I")
@@ -378,7 +378,7 @@ class TestIntegration:
 
     def test_consensus_read_full_workflow(self):
         """Test building a complete consensus read."""
-        cr = consensus_read("chr1", "region1", 100, "ACGTACGT", 5)
+        cr = ConsensusRead("chr1", "region1", 100, "ACGTACGT", 5)
 
         # Build a simple read
         for base in "ACGTACGT":
