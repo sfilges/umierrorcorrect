@@ -33,4 +33,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed path handling issues using `pathlib`.
 
 ---
-[0.30.0]: https://github.com/sfilges/umierrorcorrect/releases/tag/v0.30.0
+[0.30.0]: https://github.com/sfilges/umierrorcorrect2/releases/tag/v0.30.0

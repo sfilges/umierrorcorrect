@@ -40,9 +40,9 @@ fast = ["numba>=0.57.0"]
 umierrorcorrect = "umierrorcorrect.cli:main_cli"
 
 [project.urls]
-Homepage = "https://github.com/sfilges/umierrorcorrect"
-Documentation = "https://github.com/sfilges/umierrorcorrect/wiki"
-Repository = "https://github.com/sfilges/umierrorcorrect"
+Homepage = "https://github.com/sfilges/umierrorcorrect2"
+Documentation = "https://github.com/sfilges/umierrorcorrect2/wiki"
+Repository = "https://github.com/sfilges/umierrorcorrect2"
 
 [tool.hatch.version]
 path = "umierrorcorrect/version.py"
