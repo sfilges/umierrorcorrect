@@ -210,9 +210,7 @@ def read_bam_from_bed(
 
 def read_bam_from_tag(
     infile: str,
-) -> tuple[
-    dict[str, dict[str, Counter[str]]], dict[str, dict[str, int]], dict[str, dict[str, int]]
-]:
+) -> tuple[dict[str, dict[str, Counter[str]]], dict[str, dict[str, int]], dict[str, dict[str, int]]]:
     """
     Read BAM file groupings from the 'UG' tag.
 
