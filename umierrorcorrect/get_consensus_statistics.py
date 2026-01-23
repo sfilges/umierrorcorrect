@@ -16,13 +16,13 @@ from umierrorcorrect.core.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-class region_cons_stat:
+class RegionConsensusStats:
     def __init__(self, regionid, pos, name, singletons, fsizes):
         self.regionid = regionid
         self.pos = pos
         self.name = name
         self.singletons = singletons
-        self.hist = []
+        self.family_sizes = []
         self.total_reads = {}
         self.umis = {}
         for fsize in fsizes:
@@ -34,18 +34,18 @@ class region_cons_stat:
         self.umis[1] = self.singletons
         self.fsizes = fsizes
 
-    def add_histogram(self, hist, fsizes):
-        self.total_reads[0] += sum(hist)
-        self.umis[0] += sum(hist)
+    def add_family_sizes(self, family_sizes, fsizes):
+        # Threshold 0 represents raw read statistics (no UMI deduplication)
+        # Total reads and UMIs are both equal to the sum of all reads in the families
+        self.total_reads[0] += sum(family_sizes)
+        self.umis[0] += sum(family_sizes)
+
+        # Thresholds >= 1 represent unique molecular statistics
         for fsize in fsizes:
-            tmp = [x for x in hist if x >= fsize]
-            if fsize == 1:
-                self.total_reads[fsize] += sum(tmp)
-                self.umis[fsize] += len(tmp)
-            else:
-                self.total_reads[fsize] += sum(tmp)
-                self.umis[fsize] += len(tmp)
-        self.hist.extend(hist)
+            tmp = [x for x in family_sizes if x >= fsize]
+            self.total_reads[fsize] += sum(tmp)
+            self.umis[fsize] += len(tmp)
+        self.family_sizes.extend(family_sizes)
 
     def write_stats(self):
         lines = []
@@ -142,37 +142,41 @@ def get_stat(consensus_filename: Path, stat_filename: Path) -> list:
                     b = int(b.split("_")[-1])
                     from_tag = True
 
-            stat = region_cons_stat(regionid, pos, name, singletons, fsizes)
+            stat = RegionConsensusStats(regionid, pos, name, singletons, fsizes)
             for i in range(int(a), int(b) + 1):
                 if not from_tag:
                     if str(i) in family_sizes_by_region:
-                        stat.add_histogram(family_sizes_by_region[str(i)], fsizes)
+                        stat.add_family_sizes(family_sizes_by_region[str(i)], fsizes)
                 else:
                     if name + "_" + str(i) in family_sizes_by_region:
-                        stat.add_histogram(family_sizes_by_region[name + "_" + str(i)], fsizes)
+                        stat.add_family_sizes(family_sizes_by_region[name + "_" + str(i)], fsizes)
             regionstats.append(stat)
         else:
-            stat = region_cons_stat(regionid, pos, name, singletons, fsizes)
+            stat = RegionConsensusStats(regionid, pos, name, singletons, fsizes)
             if regionid in family_sizes_by_region:
-                stat.add_histogram(family_sizes_by_region[regionid], fsizes)
+                stat.add_family_sizes(family_sizes_by_region[regionid], fsizes)
             regionstats.append(stat)
     return regionstats
 
 
-def calculate_target_coverage(stats, fsizes):
+def calculate_target_coverage(stats, fsizes=None):
+    if fsizes is None:
+        fsizes = stats[0].fsizes if stats else list(DEFAULT_FAMILY_SIZES)[1:]
+
     reads_all = {}
     reads_target = {}
-    fsizes.insert(0, 0)
-    for fsize in fsizes:
+    fsizes_calc = fsizes.copy()
+    fsizes_calc.insert(0, 0)
+    for fsize in fsizes_calc:
         reads_all[fsize] = 0
         reads_target[fsize] = 0
     for region in stats:
-        for fsize in fsizes:
+        for fsize in fsizes_calc:
             reads_all[fsize] += region.umis[fsize]
             if region.name not in "":
                 reads_target[fsize] += region.umis[fsize]
     lines = []
-    for fsize in fsizes:
+    for fsize in fsizes_calc:
         if reads_all[fsize] > 0:
             lines.append(
                 f"{fsize}\t{reads_target[fsize]}\t{reads_all[fsize]}\t{1.0 * (reads_target[fsize] / reads_all[fsize])}"
@@ -183,8 +187,11 @@ def calculate_target_coverage(stats, fsizes):
     return "\n".join(lines)
 
 
-def get_overall_statistics(hist, fsizes):
-    histall = region_cons_stat("All", "all_regions", "", 0, fsizes)
+def get_overall_statistics(hist, fsizes=None):
+    if fsizes is None:
+        fsizes = hist[0].fsizes if hist else list(DEFAULT_FAMILY_SIZES)[1:]
+
+    histall = RegionConsensusStats("All", "all_regions", "", 0, fsizes)
     fsizesnew = fsizes.copy()
     histall.fsizes = fsizes
     fsizesnew.insert(0, 0)

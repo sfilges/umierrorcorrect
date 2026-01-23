@@ -58,10 +58,10 @@ class TestRegionConsensusStats:
 
         # Total reads at threshold 0: 5+3+2+2+1 = 13
         assert stat.total_reads[0] == 13
-        # UMIs at threshold 0: 5 families
-        assert stat.umis[0] == 5
+        # UMIs at threshold 0: Should equal total reads (13) because fsize=0 implies "raw reads"
+        assert stat.umis[0] == 13
 
-        # At threshold 1: all families pass, so same as 0
+        # At threshold 1: all families pass
         assert stat.total_reads[1] == 13
         assert stat.umis[1] == 5
 
@@ -96,9 +96,10 @@ class TestRegionConsensusStats:
         stat.add_family_sizes([5, 3], fsizes)
         stat.add_family_sizes([2, 1], fsizes)
 
-        # Total: 5+3+2+1 = 11 reads, 4 families
+        # Total: 5+3+2+1 = 11 reads
+        # UMIs at threshold 0 should equal total reads (11)
         assert stat.total_reads[0] == 11
-        assert stat.umis[0] == 4
+        assert stat.umis[0] == 11
 
     def test_write_stats_format(self):
         """Test that write_stats produces correct format."""
@@ -156,9 +157,10 @@ class TestCalculateTargetCoverage:
         target_reads = int(parts[1])
         all_reads = int(parts[2])
 
-        # Only named region should contribute to target
-        assert target_reads == 1  # 1 UMI from named region
-        assert all_reads == 2  # 2 UMIs total
+        # At threshold 0, target_reads should be total reads in named regions (10)
+        # and all_reads should be total reads in all regions (20)
+        assert target_reads == 10
+        assert all_reads == 20
 
     def test_empty_stats(self):
         """Test with empty statistics list."""
@@ -191,10 +193,10 @@ class TestGetOverallStatistics:
         assert overall.total_reads[0] == 19
 
         # UMIs at threshold 0:
-        # stat1: 2 families + 2 singletons = 4
-        # stat2: 2 families + 3 singletons = 5
-        # overall: 9
-        assert overall.umis[0] == 9
+        # stat1: 5+3 + 2 singletons = 10
+        # stat2: 4+2 + 3 singletons = 9
+        # overall: 19
+        assert overall.umis[0] == 19
 
     def test_overall_regionid(self):
         """Test that overall statistics have correct regionid."""

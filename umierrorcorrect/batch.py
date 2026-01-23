@@ -70,7 +70,7 @@ def discover_samples(input_dir: Path) -> list[Sample]:
     ]
 
     for pattern, r1_marker, r2_marker, name_marker in patterns:
-        for r1_path in input_dir.glob(pattern):
+        for r1_path in input_dir.rglob(pattern):
             if r1_path in seen_r1_files:
                 continue
             seen_r1_files.add(r1_path)

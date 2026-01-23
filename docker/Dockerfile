@@ -1,19 +1,19 @@
 ################## BASE IMAGE ######################
-FROM ubuntu:24.04 AS builder
+FROM ubuntu:24.04
 
 ################## METADATA ######################
 LABEL base.image="ubuntu:24.04"
-LABEL version="2"
+LABEL version="0.30.0"
 LABEL software="umierrorcorrect"
-LABEL software.version="1.0.0"
-LABEL about.summary="UMI error correction pipeline for barcoded amplicon sequencing"
+LABEL software.version="0.30.0"
+LABEL about.summary="Modernized UMI error correction pipeline for barcoded amplicon sequencing"
 LABEL about.home="https://github.com/sfilges/umierrorcorrect"
 LABEL about.tags="Genomics,UMI,Bioinformatics"
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies and uv in a single layer
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
@@ -26,24 +26,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     python3-dev \
+    python3-pip \
     pigz \
     bwa \
+    mafft \
+    samtools \
     && rm -rf /var/lib/apt/lists/*
+
+# Install fastp binary
+RUN curl -L http://opengene.org/fastp/fastp > /usr/local/bin/fastp && \
+    chmod a+x /usr/local/bin/fastp
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Set working directory for application
+WORKDIR /app
 
 # Set up Python environment with uv
 ENV UV_SYSTEM_PYTHON=1
 ENV UV_COMPILE_BYTECODE=1
 
-# Install Python packages using uv (faster than pip)
-RUN uv pip install --no-cache \
-    umierrorcorrect \
-    cutadapt
+# Copy project files and install
+COPY . .
+RUN uv pip install --no-cache .[fast] cutadapt
 
-# Set working directory
+# Set working directory for data
 WORKDIR /data
 
 # Default command
-CMD ["run_umierrorcorrect", "--help"]
+ENTRYPOINT ["umierrorcorrect"]
+CMD ["--help"]

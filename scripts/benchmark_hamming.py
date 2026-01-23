@@ -19,13 +19,13 @@ NUCLEOTIDES = "ACGT"
 
 def generate_random_umi(length: int = UMI_LENGTH) -> str:
     """Generate a random UMI sequence."""
-    return "".join(random.choice(NUCLEOTIDES) for _ in range(length))
+    return "".join(random.choice(NUCLEOTIDES) for _ in range(length))  # noqa: S311
 
 
 def generate_umi_pairs(num_umis: int, num_comparisons: int) -> list[tuple[str, str]]:
     """Generate random UMI pairs for benchmarking."""
     umis = [generate_random_umi() for _ in range(num_umis)]
-    pairs = [(random.choice(umis), random.choice(umis)) for _ in range(num_comparisons)]
+    pairs = [(random.choice(umis), random.choice(umis)) for _ in range(num_comparisons)]  # noqa: S311
     return pairs
 
 
@@ -62,7 +62,7 @@ except ImportError:
     hamming_numba = None
 
 
-def benchmark_function(func, pairs: list[tuple[str, str]], name: str) -> float:
+def benchmark_function(func, pairs: list[tuple[str, str]], _name: str) -> float:
     """Benchmark a hamming distance function and return elapsed time."""
     start = time.perf_counter()
     for a, b in pairs:

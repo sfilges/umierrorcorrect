@@ -140,6 +140,20 @@ class TestDiscoverSamples:
         assert len(samples) == 1
         assert samples[0].name == "uncomp"
 
+    def test_discover_recursive(self, temp_output_dir):
+        """Test discovering samples recursively in subdirectories."""
+        subdir = temp_output_dir / "subdir" / "nested"
+        subdir.mkdir(parents=True)
+        (subdir / "nested_R1.fastq.gz").touch()
+        (subdir / "nested_R2.fastq.gz").touch()
+
+        samples = discover_samples(temp_output_dir)
+
+        assert len(samples) == 1
+        assert samples[0].name == "nested"
+        assert samples[0].read1 == subdir / "nested_R1.fastq.gz"
+        assert samples[0].read2 == subdir / "nested_R2.fastq.gz"
+
 
 class TestParseSampleSheet:
     """Tests for parse_sample_sheet function."""
