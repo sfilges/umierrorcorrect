@@ -1,7 +1,9 @@
-# UMIErrorCorrect
+# UMIErrorCorrect2
 
-[![PyPI version](https://badge.fury.io/py/umierrorcorrect.svg)](https://badge.fury.io/py/umierrorcorrect)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://badge.fury.io/py/umierrorcorrect2.svg)](https://badge.fury.io/py/umierrorcorrect2)
+[![CI](https://github.com/sfilges/umierrorcorrect/actions/workflows/ci.yml/badge.svg)](https://github.com/sfilges/umierrorcorrect/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/sfilges/umierrorcorrect/branch/master/graph/badge.svg?token=)](https://codecov.io/gh/sfilges/umierrorcorrect)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
@@ -27,18 +29,18 @@ This package is a **complete modernization** of the original [UMIErrorCorrect](h
 Use [uv](https://github.com/astral-sh/uv) for lightning-fast installation:
 
 ```bash
-uv pip install umierrorcorrect
+uv pip install umierrorcorrect2
 ```
 
 Or standard pip:
 
 ```bash
-pip install umierrorcorrect
+pip install umierrorcorrect2
 ```
 
 ## Quick Start
 
-Run the full pipeline on a single sample:
+The command-line tool is named `umierrorcorrect`. Run the full pipeline on a single sample:
 
 ```bash
 umierrorcorrect batch \

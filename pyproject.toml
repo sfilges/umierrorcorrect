@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 
 
-name = "umierrorcorrect"
+name = "umierrorcorrect2"
 dynamic = ["version"]
 description = "Pipeline for analyzing barcoded amplicon sequencing data with Unique Molecular Identifiers (UMI)"
 readme = "README.md"
