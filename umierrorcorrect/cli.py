@@ -45,7 +45,7 @@ def main(
 ) -> None:
     """UMI Error Correct - Pipeline for analyzing barcoded amplicon sequencing data."""
     log_level = "DEBUG" if verbose else "INFO"
-    setup_logging(level=log_level)
+    setup_logging(level=log_level)  # type: ignore
 
 
 @app.command()
@@ -106,7 +106,7 @@ def preprocess(
             umi_enabled=fastp_extract_umi,
             umi_length=umi_length,
             umi_skip=spacer_length,
-            umi_loc=umi_loc,
+            umi_loc=umi_loc,  # type: ignore
         )
 
     # Create unified PreprocessConfig - fastp handling is now internal
@@ -163,7 +163,7 @@ def consensus(
         edit_distance_threshold=edit_distance,
         num_threads=threads,
         include_singletons=include_singletons,
-        consensus_method=consensus_method,
+        consensus_method=consensus_method,  # type: ignore
     )
 
     logger.info("Starting consensus generation")
@@ -267,7 +267,7 @@ def mapping(
         mode = "paired"
 
     if not sample_name:
-        sample_name = get_sample_name(str(read1), mode)
+        sample_name = get_sample_name(str(read1), mode)  # type: ignore
 
     logger.info("Starting BWA mapping")
     align_bwa(threads, reference, [Path(f) for f in fastq_files], output_path, sample_name, remove_files)

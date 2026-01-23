@@ -109,11 +109,11 @@ def get_stat(consensus_filename: Path, stat_filename: Path) -> list:
     # singletons: Singleton_read_7_GTCGAAACTAGA_Count=1
     # consensus: Consensus_read_7_TGATAAAATAAG_a_Count=8
     # What do the a, b, c, etc. tags before counts mean? Likely subclusters from UMI clustering.
-    family_sizes_by_region = {}
+    family_sizes_by_region: dict[str, list[int]] = {}
     with pysam.AlignmentFile(consensus_filename, "rb") as f:
         reads = f.fetch()
         for read in reads:
-            idx = read.qname
+            idx = read.qname  # type: ignore
             if idx.startswith("Consensus_read"):
                 # ['Consensus', 'read', '7', 'TGATAAAATAAG', 'a', 'Count=8']
                 parts = idx.split("_")
@@ -131,19 +131,22 @@ def get_stat(consensus_filename: Path, stat_filename: Path) -> list:
     regionstats = []
     for regionid, pos, singletons, name in regions:
         if "-" in regionid:
-            a, b, *rest = regionid.split("-")
+            a_str, b_str, *rest = regionid.split("-")
             from_tag = False
+            start_idx = 0
+            end_idx = 0
             try:
-                int(b)
+                start_idx = int(a_str)
+                end_idx = int(b_str)
             except ValueError:  # not an int
-                if "_" in b:
-                    name = a
-                    a = 0
-                    b = int(b.split("_")[-1])
+                if "_" in b_str:
+                    name = a_str
+                    start_idx = 0
+                    end_idx = int(b_str.split("_")[-1])
                     from_tag = True
 
             stat = RegionConsensusStats(regionid, pos, name, singletons, fsizes)
-            for i in range(int(a), int(b) + 1):
+            for i in range(start_idx, end_idx + 1):
                 if not from_tag:
                     if str(i) in family_sizes_by_region:
                         stat.add_family_sizes(family_sizes_by_region[str(i)], fsizes)

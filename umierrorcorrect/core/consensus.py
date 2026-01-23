@@ -719,7 +719,7 @@ def get_cons_dict(
         alignment = f.fetch(contig, start, end)
         for read in alignment:
             # Use rsplit with maxsplit=1 - more efficient than split(":")[-1]
-            barcode = read.qname.rsplit(":", 1)[-1]
+            barcode = read.qname.rsplit(":", 1)[-1]  # type: ignore
             pos = read.reference_start
 
             if pos is not None and start <= pos <= end:

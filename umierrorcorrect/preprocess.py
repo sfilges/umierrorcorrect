@@ -452,6 +452,9 @@ def run_preprocessing(config: PreprocessConfig) -> tuple[list[str], int]:
         else:
             fastp_output_dir = config.output_path / "fastp_filtered"
 
+        if config.sample_name is None:
+            raise ValueError("Sample name must be provided for fastp processing")
+
         fastp_result = run_fastp(
             read1=config.read1,
             read2=config.read2,
@@ -481,6 +484,8 @@ def run_preprocessing(config: PreprocessConfig) -> tuple[list[str], int]:
                 input_read2 = None
                 logger.info(f"Using merged reads from fastp: {input_read1}")
             else:
+                if fastp_result.filtered_read1 is None:
+                    raise ValueError("fastp returned None for filtered_read1")
                 input_read1 = fastp_result.filtered_read1
                 input_read2 = fastp_result.filtered_read2
                 logger.info("Using filtered reads from fastp")
@@ -510,6 +515,8 @@ def run_preprocessing(config: PreprocessConfig) -> tuple[list[str], int]:
 
     # Step 4: Optional cutadapt (only if adapter trimming requested and fastp didn't handle it)
     if config.adapter_trimming is True and not fastp_trimmed_adapters:
+        if config.sample_name is None:
+            raise ValueError("Sample name must be provided for adapter trimming")
         output_path = Path(config.output_path)
         r2_input = r2file if effective_mode == "paired" else None
         r1file, r2file_out = run_cutadapt(

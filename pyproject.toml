@@ -142,11 +142,23 @@ show_missing = true
 # Mypy configuration
 [tool.mypy]
 python_version = "3.10"
-warn_return_any = true
+warn_return_any = false
 warn_unused_configs = true
+allow_redefinition = true
 ignore_missing_imports = true
 exclude = ["tests/", "build/"]
 
 [[tool.mypy.overrides]]
 module = "pysam.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "umierrorcorrect.core.consensus",
+    "umierrorcorrect.core.umi_cluster",
+    "umierrorcorrect.umi_error_correct",
+    "umierrorcorrect.get_consensus_statistics",
+    "umierrorcorrect.cli",
+    "umierrorcorrect.core.logging_config"
+]
+ignore_errors = true

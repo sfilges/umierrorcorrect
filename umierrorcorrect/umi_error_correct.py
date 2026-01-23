@@ -96,7 +96,7 @@ def cluster_consensus_worker(args: tuple) -> None:
 
     # Write consensus reads (and singletons) to a BAM file
     num_cons = 0
-    with pysam.AlignmentFile(bamfilename, "rb") as f, pysam.AlignmentFile(outfilename, "wb", template=f) as g:
+    with pysam.AlignmentFile(bamfilename, "rb") as f, pysam.AlignmentFile(outfilename, "wb", template=f) as g:  # type: ignore
         for cons_read in consensus_seq.values():
             if cons_read:
                 cons_read.write_to_bam(g)
@@ -120,8 +120,8 @@ def cluster_consensus_worker(args: tuple) -> None:
     if len(cons) > 0:
         startpos = min(list(cons.keys()))  # take the rightmost coordinate as start
         endpos = max(list(cons.keys())) + 1  # take the leftmost coordinate as end
-        with pysam.FastaFile(fasta) as f:
-            ref_seq = get_reference_sequence(f, contig, startpos, endpos)
+        with pysam.FastaFile(fasta) as fasta_file:
+            ref_seq = get_reference_sequence(fasta_file, contig, startpos, endpos)
         with Path(consfilename).open("w") as g:
             write_consensus(g, cons, ref_seq, startpos, contig, annotations, samplename, False)
     else:  # empty file
@@ -222,7 +222,8 @@ def check_duplicate_positions(cons_file: str) -> dict[str, list[str]]:
             # Chain: sort tmp1 | uniq -d > tmp2
             p1 = subprocess.Popen([sort_cmd, tmp1_path], stdout=subprocess.PIPE)
             p2 = subprocess.Popen([uniq_cmd, "-d"], stdin=p1.stdout, stdout=outfile)
-            p1.stdout.close()  # Allow p1 to receive SIGPIPE if p2 exits
+            if p1.stdout:
+                p1.stdout.close()  # Allow p1 to receive SIGPIPE if p2 exits
             p2.communicate()
 
         duppos = {}

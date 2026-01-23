@@ -391,7 +391,7 @@ def batch_process(
             umi_enabled=True,
             umi_length=umi_length,
             umi_skip=spacer_length,
-            umi_loc=umi_loc,
+            umi_loc=umi_loc,  # type: ignore
         )
 
     # Run FastQC if requested

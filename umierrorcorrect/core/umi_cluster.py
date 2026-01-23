@@ -85,8 +85,8 @@ def create_substring_matrix(barcodedict: dict[str, int], edit_distance_threshold
     umi_length = len(list(barcodedict.keys())[0])
     if edit_distance_threshold <= 1:
         s = round(umi_length // 2)
-        substr_dict1 = {}
-        substr_dict2 = {}
+        substr_dict1: dict[str, list[str]] = {}
+        substr_dict2: dict[str, list[str]] = {}
         for barcode in barcodedict:
             sub1 = barcode[:s]
             sub2 = barcode[s:]
@@ -99,9 +99,9 @@ def create_substring_matrix(barcodedict: dict[str, int], edit_distance_threshold
         return [substr_dict1, substr_dict2]
     if edit_distance_threshold == 2:
         s = round(umi_length // 3)
-        substr_dict1 = {}
-        substr_dict2 = {}
-        substr_dict3 = {}
+        substr_dict1: dict[str, list[str]] = {}
+        substr_dict2: dict[str, list[str]] = {}
+        substr_dict3: dict[str, list[str]] = {}
         for barcode in barcodedict:
             sub1 = barcode[:s]
             sub2 = barcode[s : 2 * s]
@@ -116,6 +116,7 @@ def create_substring_matrix(barcodedict: dict[str, int], edit_distance_threshold
             substr_dict2[sub2].append(barcode)
             substr_dict3[sub3].append(barcode)
         return [substr_dict1, substr_dict2, substr_dict3]
+    return []  # Default case if threshold > 2 or invalid
 
 
 def get_adj_matrix_from_substring(
@@ -127,7 +128,7 @@ def get_adj_matrix_from_substring(
         substr_dict1, substr_dict2 = substrdictlist
         s = round(umi_length // 2)
         for barcode in barcodedict:
-            neighbors = set()
+            neighbors: set[str] = set()
             sub1 = barcode[:s]
             neighbors = neighbors.union(substr_dict1[sub1])
             sub2 = barcode[s:]
@@ -139,7 +140,7 @@ def get_adj_matrix_from_substring(
         substr_dict1, substr_dict2, substr_dict3 = substrdictlist
         s = round(umi_length // 3)
         for barcode in barcodedict:
-            neighbors = set()
+            neighbors: set[str] = set()
             sub1 = barcode[:s]
             neighbors = neighbors.union(substr_dict1[sub1])
             sub2 = barcode[s : 2 * s]
