@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `group_by_position`: Updated the default automatic grouping mode to deduplicate mates within each 20bp region.
 - `read_bam_from_tag`: Updated the tag-based grouping mode to deduplicate mates sharing the same UG tag.
 - Bounding Box Robustness: In read_bam_from_tag, I also ensured that the starts dictionary tracks the minimum start position of any read in the group, ensuring the consensus covers the entire fragment range.
+- Added CI testing for Python 3.13
 
 ## [0.30.1] - 2026-01-23
 
