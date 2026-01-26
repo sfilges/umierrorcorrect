@@ -127,7 +127,6 @@ def cluster_consensus_worker(args: tuple) -> None:
         Path(consfilename).touch()
 
 
-
 def update_bam_header(bamfile: str, samplename: str) -> dict[str, Any]:
     """Update BAM header with sample name."""
     with pysam.AlignmentFile(bamfile, "rb") as f:

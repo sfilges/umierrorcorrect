@@ -174,7 +174,9 @@ def consensus(
 def stats(
     output: Annotated[Path, typer.Option("-o", "--output", help="Path to output directory.")],
     cons_bam: Annotated[Optional[Path], typer.Option("-c", "--cons-bam", help="Path to consensus BAM file.")] = None,
-    bed_file: Annotated[Optional[Path], typer.Option("-bed", "--bed-file", help="Path to BED file for region annotations.")] = None,
+    bed_file: Annotated[
+        Optional[Path], typer.Option("-bed", "--bed-file", help="Path to BED file for region annotations.")
+    ] = None,
     sample_name: Annotated[Optional[str], typer.Option("-s", "--sample-name", help="Sample name.")] = None,
     output_raw: Annotated[bool, typer.Option("--raw", help="Output raw consensus group counts.")] = False,
 ) -> None:
@@ -312,7 +314,9 @@ def filter_cons(
 def downsampling(
     output: Annotated[Path, typer.Option("-o", "--output", help="Path to output directory.")],
     cons_bam: Annotated[Optional[Path], typer.Option("-c", "--cons-bam", help="Path to consensus BAM file.")] = None,
-    bed_file: Annotated[Optional[Path], typer.Option("-bed", "--bed-file", help="Path to BED file for region annotations.")] = None,
+    bed_file: Annotated[
+        Optional[Path], typer.Option("-bed", "--bed-file", help="Path to BED file for region annotations.")
+    ] = None,
     sample_name: Annotated[Optional[str], typer.Option("-s", "--sample-name", help="Sample name.")] = None,
     fsizes: Annotated[
         str, typer.Option("-f", "--fsizes", help="Comma-separated family size thresholds to plot (e.g., '1,2,3,5').")

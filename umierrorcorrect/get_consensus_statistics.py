@@ -73,10 +73,7 @@ def parse_consensus_read_name(qname: str) -> tuple[str, int]:
     return read_type, count
 
 
-def get_stats_from_bam(
-    consensus_bam: str | Path,
-    bed_file: str | Path | None = None
-) -> list[RegionStats]:
+def get_stats_from_bam(consensus_bam: str | Path, bed_file: str | Path | None = None) -> list[RegionStats]:
     """Extract all statistics directly from consensus BAM.
 
     Groups reads by (chrom, start_position) to automatically merge
@@ -197,7 +194,7 @@ class RegionConsensusStats:
             pos=region.position,
             name=region.name,
             singletons=region.singleton_count,
-            fsizes=fsizes
+            fsizes=fsizes,
         )
         stat.add_family_sizes(region.consensus_counts, fsizes)
         return stat
@@ -377,11 +374,7 @@ def get_percent_mapped_reads(num_fastq_reads, bamfile):
 
 
 def run_get_consensus_statistics(
-    output_path: str,
-    consensus_filename: str | None,
-    bed_file: str | None,
-    output_raw: bool,
-    samplename: str | None
+    output_path: str, consensus_filename: str | None, bed_file: str | None, output_raw: bool, samplename: str | None
 ):
     """Execute the consensus statistics calculation pipeline.
 

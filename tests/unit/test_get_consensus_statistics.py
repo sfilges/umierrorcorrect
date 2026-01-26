@@ -225,12 +225,7 @@ class TestRegionStats:
     def test_basic_properties(self):
         """Test basic RegionStats properties."""
         stats = RegionStats(
-            chrom="chr1",
-            start=100,
-            end=200,
-            name="gene1",
-            consensus_counts=[5, 3, 10],
-            singleton_count=2
+            chrom="chr1", start=100, end=200, name="gene1", consensus_counts=[5, 3, 10], singleton_count=2
         )
 
         assert stats.chrom == "chr1"
@@ -247,35 +242,18 @@ class TestRegionStats:
 
     def test_total_consensus(self):
         """Test total_consensus property."""
-        stats = RegionStats(
-            chrom="chr1",
-            start=100,
-            end=200,
-            consensus_counts=[5, 3, 10]
-        )
+        stats = RegionStats(chrom="chr1", start=100, end=200, consensus_counts=[5, 3, 10])
         assert stats.total_consensus == 3
 
     def test_total_raw_reads(self):
         """Test total_raw_reads property."""
-        stats = RegionStats(
-            chrom="chr1",
-            start=100,
-            end=200,
-            consensus_counts=[5, 3, 10],
-            singleton_count=2
-        )
+        stats = RegionStats(chrom="chr1", start=100, end=200, consensus_counts=[5, 3, 10], singleton_count=2)
         # 5 + 3 + 10 + 2 = 20
         assert stats.total_raw_reads == 20
 
     def test_umis_at_threshold(self):
         """Test umis_at_threshold method."""
-        stats = RegionStats(
-            chrom="chr1",
-            start=100,
-            end=200,
-            consensus_counts=[5, 3, 10, 2, 1],
-            singleton_count=2
-        )
+        stats = RegionStats(chrom="chr1", start=100, end=200, consensus_counts=[5, 3, 10, 2, 1], singleton_count=2)
 
         # Threshold 1: all consensus (5) + singletons (2) = 7
         assert stats.umis_at_threshold(1) == 7
@@ -291,13 +269,7 @@ class TestRegionStats:
 
     def test_reads_at_threshold(self):
         """Test reads_at_threshold method."""
-        stats = RegionStats(
-            chrom="chr1",
-            start=100,
-            end=200,
-            consensus_counts=[5, 3, 10],
-            singleton_count=2
-        )
+        stats = RegionStats(chrom="chr1", start=100, end=200, consensus_counts=[5, 3, 10], singleton_count=2)
 
         # Threshold 1: 5 + 3 + 10 + 2 = 20
         assert stats.reads_at_threshold(1) == 20
@@ -314,25 +286,19 @@ class TestParseConsensusReadName:
 
     def test_consensus_read(self):
         """Test parsing a consensus read name."""
-        read_type, count = parse_consensus_read_name(
-            "Consensus_read_0_TTGTAAAGCATGAAATAGC_Count=144"
-        )
+        read_type, count = parse_consensus_read_name("Consensus_read_0_TTGTAAAGCATGAAATAGC_Count=144")
         assert read_type == "Consensus"
         assert count == 144
 
     def test_consensus_read_with_subcluster(self):
         """Test parsing a consensus read name with subcluster tag."""
-        read_type, count = parse_consensus_read_name(
-            "Consensus_read_0_TTGTAAAGCATGAAATAGC_a_Count=144"
-        )
+        read_type, count = parse_consensus_read_name("Consensus_read_0_TTGTAAAGCATGAAATAGC_a_Count=144")
         assert read_type == "Consensus"
         assert count == 144
 
     def test_singleton_read(self):
         """Test parsing a singleton read name."""
-        read_type, count = parse_consensus_read_name(
-            "Singleton_read_0_AAGAAAAGCAAGAAATGGT_Count=1"
-        )
+        read_type, count = parse_consensus_read_name("Singleton_read_0_AAGAAAAGCAAGAAATGGT_Count=1")
         assert read_type == "Singleton"
         assert count == 1
 
@@ -342,14 +308,7 @@ class TestRegionConsensusStatsFromRegionStats:
 
     def test_from_region_stats_basic(self):
         """Test creating RegionConsensusStats from RegionStats."""
-        region = RegionStats(
-            chrom="chr1",
-            start=100,
-            end=200,
-            name="gene1",
-            consensus_counts=[5, 3],
-            singleton_count=2
-        )
+        region = RegionStats(chrom="chr1", start=100, end=200, name="gene1", consensus_counts=[5, 3], singleton_count=2)
         fsizes = [1, 2, 3, 5]
 
         stat = RegionConsensusStats.from_region_stats(region, fsizes)
@@ -362,13 +321,7 @@ class TestRegionConsensusStatsFromRegionStats:
 
     def test_from_region_stats_counts(self):
         """Test that counts are calculated correctly."""
-        region = RegionStats(
-            chrom="chr1",
-            start=100,
-            end=200,
-            consensus_counts=[5, 3, 2],
-            singleton_count=2
-        )
+        region = RegionStats(chrom="chr1", start=100, end=200, consensus_counts=[5, 3, 2], singleton_count=2)
         fsizes = [1, 2, 3, 5]
 
         stat = RegionConsensusStats.from_region_stats(region, fsizes)
