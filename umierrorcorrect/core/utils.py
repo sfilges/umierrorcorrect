@@ -8,7 +8,9 @@ to avoid code duplication.
 import re
 from pathlib import Path
 from typing import Literal
+
 import pysam
+
 
 # TODO: This is currently not used, but should be used in the future
 def get_percent_mapped_reads(num_fastq_reads, bamfile):
